@@ -1,0 +1,33 @@
+# Django
+*.pyc
+_pycache_/
+__pycache__/
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+
+# Virtual environment
+venv/
+env/
+testenv/
+myenv/
+
+# Sensitive files
+.env
+*.secret
+*.key
+
+# IDE files
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Static and media files
+staticfiles/
+media/
+
+# Logs
+*.log__pycache__/
+*.pyc
