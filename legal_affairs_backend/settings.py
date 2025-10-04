@@ -55,7 +55,8 @@ INSTALLED_APPS = [
 
     # Local apps
     "accounts",
-
+    'fatwas',
+    'departments',
     # REST Framework
     "rest_framework",
     "rest_framework.authtoken",
