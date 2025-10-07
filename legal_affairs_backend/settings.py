@@ -74,6 +74,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "cloudinary",
     "cloudinary_storage",
+    # Domain apps
+    "contracts",
 ]
 
 # REST Framework settings
