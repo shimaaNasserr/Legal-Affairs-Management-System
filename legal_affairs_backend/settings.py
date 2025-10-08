@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "accounts",
     'fatwas',
     'departments',
+    'investigations',
 
     "cases",
 
