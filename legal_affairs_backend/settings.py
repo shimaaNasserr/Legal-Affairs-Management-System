@@ -58,7 +58,7 @@ INSTALLED_APPS = [
     'fatwas',
     'departments',
     'investigations',
-
+    'appeals',
     "cases",
 
     # REST Framework
