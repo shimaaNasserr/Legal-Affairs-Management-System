@@ -14,4 +14,4 @@ class Command(BaseCommand):
         ]
         for name, desc in roles:
             Role.objects.get_or_create(name=name, defaults={"description": desc})
-        self.stdout.write(self.style.SUCCESS("✅ Default roles created successfully!"))
+        self.stdout.write(self.style.SUCCESS(" Default roles created successfully!"))

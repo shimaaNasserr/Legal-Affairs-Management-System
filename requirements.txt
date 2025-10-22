@@ -16,3 +16,4 @@ cryptography==45.0.6
 dj-rest-auth==7.0.1
 django-allauth==65.11.0
 django-cloudinary-storage==0.3.0
+django-filter==25.2
