@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path , include
+from .views import ReportsSummaryView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -9,4 +10,5 @@ urlpatterns = [
     path('api/', include('investigations.urls')),
 
     path("api/contracts/", include("contracts.urls")),
+    path("api/reports/summary/", ReportsSummaryView.as_view()),
 ]
