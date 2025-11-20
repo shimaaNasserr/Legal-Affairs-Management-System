@@ -30,16 +30,16 @@ class Case(models.Model):
     ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     date_received = models.DateField()
-    general_number = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    general_number = models.CharField(max_length=50, unique=True)
     case_number = models.CharField(max_length=100)
     lawsuit_number = models.CharField(max_length=100)
-    court = models.CharField(max_length=200)
+    court = models.ForeignKey('courts.Court', on_delete=models.PROTECT, null=True, blank=True, related_name="cases")
     plaintiff = models.CharField(max_length=200)
     defendant = models.CharField(max_length=200)
     requests = models.TextField()
-    hearing_dates = models.TextField(blank=True)
+    hearing_dates = models.DateField(blank=True, null=True)  
     notes = models.TextField(default='',blank=True)
-    appeal_status = models.BooleanField(default=False)
+    appeal_status = models.BooleanField(default=None, null=True, blank=True)
     case_status = models.CharField(max_length=20, choices=CASE_STATUS_CHOICES, default='pending')
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='cases', null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_cases', null=True, blank=True)
@@ -62,10 +62,17 @@ class Case(models.Model):
     def save(self, *args, **kwargs):
         if not self.general_number:
             self.general_number = allocate_general_number()
+
         if not self.department_id:
-            self.department_id = 1
+            default_dept = Department.objects.first()
+            if default_dept:
+                self.department_id = default_dept.id
+            else:
+                self.department_id = None
+
         self.full_clean(exclude=['department'])
         super().save(*args, **kwargs)
+
 
 class LawyerSecretaryAccess(models.Model):
     lawyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="lawyer_secretary_access", limit_choices_to={"role__name": "Lawyer"}, verbose_name="المحامي")

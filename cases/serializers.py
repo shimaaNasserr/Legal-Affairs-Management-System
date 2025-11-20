@@ -2,17 +2,22 @@ from rest_framework import serializers
 from .models import Case, LawyerSecretaryAccess
 from accounts.models import User
 from django.utils import timezone
+from courts.models import Court
+
 
 class CaseSerializer(serializers.ModelSerializer):
+    court = serializers.PrimaryKeyRelatedField(queryset=Court.objects.all(), required=False, allow_null=True)
+    court_name = serializers.CharField(source='court.name', read_only=True)
     lawyers_details = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
+
 
     class Meta:
         model = Case
         fields = [
             'id', 'date_received', 'general_number', 'case_number', 'lawsuit_number',
-            'court', 'plaintiff', 'defendant', 'requests', 'hearing_dates', 'notes',
+            'court',"court_name", 'plaintiff', 'defendant', 'requests', 'hearing_dates', 'notes',
             'appeal_status', 'case_status', 'department', 'department_name', 'created_by',
             'created_by_name', 'lawyers', 'lawyers_details', 'file', 'created_at', 'updated_at'
         ]
