@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'investigations',
     'appeals',
     "cases",
+    "courts",
 
     # REST Framework
     "rest_framework",
