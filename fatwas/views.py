@@ -4,7 +4,7 @@ from .serializers import FatwaSerializer
 from .permissions import FatwaPermission
 
 class FatwaViewSet(viewsets.ModelViewSet):
-    queryset = Fatwa.objects.all().order_by('-created_at')
+    queryset = Fatwa.objects.select_related('department', 'created_by').all().order_by('-created_at')
     serializer_class = FatwaSerializer
     permission_classes = [FatwaPermission]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]

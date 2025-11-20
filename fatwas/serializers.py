@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import Fatwa
 
 class FatwaSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     class Meta:
         model = Fatwa
         fields = '__all__'
