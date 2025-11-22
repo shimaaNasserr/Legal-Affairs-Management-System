@@ -33,7 +33,8 @@ class CaseSerializer(serializers.ModelSerializer):
 
     def validate_lawyers(self, value):
         for lawyer in value:
-            if not hasattr(lawyer, 'role') or not lawyer.role or lawyer.role.name.lower() != 'lawyer':
+            role_name = lawyer.role_name
+            if not role_name or role_name.lower() != 'lawyer':
                 raise serializers.ValidationError(f"المستخدم {lawyer.username} ليس محامياً")
         return value
 

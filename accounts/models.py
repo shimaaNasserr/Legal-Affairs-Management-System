@@ -18,6 +18,9 @@ class Role(models.Model):
         verbose_name = "دور"
         verbose_name_plural = "الأدوار"
         ordering = ["name"]
+        indexes = [
+            models.Index(fields=['name']),
+        ]
 
     def __str__(self):
         return self.name
@@ -32,6 +35,10 @@ class Department(models.Model):
         verbose_name = "إدارة"
         verbose_name_plural = "الإدارات"
         ordering = ["name"]
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['code']),
+        ]
 
     def __str__(self):
         return self.name
@@ -73,6 +80,11 @@ class User(AbstractUser):
     class Meta:
         verbose_name = "مستخدم"
         verbose_name_plural = "المستخدمين"
+
+    @property
+    def role_name(self):
+        """إرجاع اسم الدور أو None إذا لم يكن هناك دور"""
+        return self.role.name if self.role else None
 
     def __str__(self):
         return f"{self.username} - {self.role.name if self.role else 'بدون دور'}"

@@ -9,6 +9,11 @@ from .views import ReportsSummaryView
 router = DefaultRouter()
 router.register(r'appeals', AppealViewSet)
 
+# تحسين عناوين لوحة الإدارة بالعربية - جامعة بورسعيد
+admin.site.site_header = "نظام إدارة الشئون القانونية - جامعة بورسعيد"
+admin.site.site_title = "إدارة الشئون القانونية - جامعة بورسعيد"
+admin.site.index_title = "مرحباً بك في لوحة التحكم - جامعة بورسعيد"
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('api/', include(router.urls)),
@@ -18,7 +23,7 @@ urlpatterns = [
     path('api/', include('investigations.urls')),
     path("api/", include("appeals.urls")),
     path("api/courts/", include("courts.urls")),
-
+    path("api/departments/", include("departments.urls")),
     path("api/contracts/", include("contracts.urls")),
     path("api/reports/summary/", ReportsSummaryView.as_view()),
 ]

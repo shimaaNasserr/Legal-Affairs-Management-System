@@ -144,10 +144,22 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+LANGUAGE_CODE = "ar"
+TIME_ZONE = "Africa/Cairo"  # أو "Asia/Riyadh" حسب المنطقة
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
+
+# اللغات المدعومة
+LANGUAGES = [
+    ('ar', 'العربية'),
+    ('en', 'English'),
+]
+
+# مسار ملفات الترجمة
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 
 # Static files
 STATIC_URL = "/static/"

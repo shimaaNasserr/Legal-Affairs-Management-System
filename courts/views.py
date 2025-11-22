@@ -11,9 +11,18 @@ class CourtListCreateAPIView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        role_name = user.role_name
+        
+        # President و GeneralManager: جميع المحاكم
+        if role_name in ['President', 'GeneralManager']:
+            return Court.objects.all()
+        
+        # DepartmentManager: محاكم إدارته فقط
+        if role_name == 'DepartmentManager' and user.department:
+            return Court.objects.filter(department=user.department)
+        
+        # باقي الأدوار: جميع المحاكم (للقراءة فقط)
         return Court.objects.all()
-
-        return Court.objects.filter(department=user.department)
 
 
 class CourtRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):

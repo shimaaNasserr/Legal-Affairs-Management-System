@@ -188,6 +188,13 @@ class Investigation(models.Model):
         ordering = ['-created_at']
         verbose_name = "تحقيق"
         verbose_name_plural = "التحقيقات"
+        indexes = [
+            models.Index(fields=['general_number']),
+            models.Index(fields=['status']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['date_received']),
+            models.Index(fields=['department', 'status']),
+        ]
     
     def __str__(self):
         return f"{self.general_number} - {self.title}"
@@ -336,6 +343,12 @@ class Appeal(models.Model):
         ordering = ['-created_at']
         verbose_name = "استئناف"
         verbose_name_plural = "الاستئنافات"
+        indexes = [
+            models.Index(fields=['appeal_number']),
+            models.Index(fields=['status']),
+            models.Index(fields=['date_submitted']),
+            models.Index(fields=['investigation', 'status']),
+        ]
     
     def __str__(self):
         return f"{self.appeal_number} - {self.appellant_name}"
@@ -383,7 +396,8 @@ class Appeal(models.Model):
         random_part = ''.join(random.choices(string.digits, k=5))
         appeal_number = f"APL-{year}-{month:02d}-{random_part}"
         
-        while Appeal.objects.filter(appeal_number=appeal_number).exists():
+        # استخدام self.__class__ بدلاً من Appeal مباشرة
+        while self.__class__.objects.filter(appeal_number=appeal_number).exists():
             random_part = ''.join(random.choices(string.digits, k=5))
             appeal_number = f"APL-{year}-{month:02d}-{random_part}"
         

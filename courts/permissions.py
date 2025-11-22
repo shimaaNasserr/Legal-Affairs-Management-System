@@ -8,31 +8,37 @@ class CourtPermission(BasePermission):
         if request.method in ["GET", "HEAD", "OPTIONS"]:
             return True
 
-        role = request.user.role
+        role_name = request.user.role_name
+        
+        if not role_name:
+            return False
 
         # Full access for President & GeneralManager
-        if role in ["President", "GeneralManager"]:
+        if role_name in ["President", "GeneralManager"]:
             return True
 
         # DepartmentManager can add/update courts for their own dept
-        if role == "DepartmentManager":
+        if role_name == "DepartmentManager":
             return True
 
         return False
 
     def has_object_permission(self, request, view, obj):
-        role = request.user.role
+        role_name = request.user.role_name
 
         # Always allow viewing
         if request.method in ["GET", "HEAD", "OPTIONS"]:
             return True
 
+        if not role_name:
+            return False
+
         # President & GeneralManager always allowed
-        if role in ["President", "GeneralManager"]:
+        if role_name in ["President", "GeneralManager"]:
             return True
 
         # DepartmentManager only for their own courts
-        if role == "DepartmentManager":
+        if role_name == "DepartmentManager":
             return obj.department == request.user.department
 
         return False

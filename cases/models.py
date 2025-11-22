@@ -29,28 +29,37 @@ class Case(models.Model):
         ('appealed', 'قيد الاستئناف'),
     ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    date_received = models.DateField()
-    general_number = models.CharField(max_length=50, unique=True)
-    case_number = models.CharField(max_length=100)
-    lawsuit_number = models.CharField(max_length=100)
-    court = models.ForeignKey('courts.Court', on_delete=models.PROTECT, null=True, blank=True, related_name="cases")
-    plaintiff = models.CharField(max_length=200)
-    defendant = models.CharField(max_length=200)
-    requests = models.TextField()
-    hearing_dates = models.DateField(blank=True, null=True)  
-    notes = models.TextField(default='',blank=True)
-    appeal_status = models.BooleanField(default=None, null=True, blank=True)
-    case_status = models.CharField(max_length=20, choices=CASE_STATUS_CHOICES, default='pending')
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='cases', null=True, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_cases', null=True, blank=True)
-    lawyers = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='assigned_cases', blank=True)
-    file = models.FileField(upload_to="cases/", blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    date_received = models.DateField(verbose_name="تاريخ الاستلام")
+    general_number = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="الرقم العام")
+    case_number = models.CharField(max_length=100, verbose_name="رقم القضية")
+    lawsuit_number = models.CharField(max_length=100, verbose_name="رقم الدعوى")
+    court = models.ForeignKey('courts.Court', on_delete=models.PROTECT, null=True, blank=True, related_name="cases", verbose_name="المحكمة")
+    plaintiff = models.CharField(max_length=200, verbose_name="المدعي")
+    defendant = models.CharField(max_length=200, verbose_name="المدعى عليه")
+    requests = models.TextField(verbose_name="الطلبات")
+    hearing_dates = models.DateField(blank=True, null=True, verbose_name="تاريخ الجلسات")
+    notes = models.TextField(default='',blank=True, verbose_name="ملاحظات")
+    appeal_status = models.BooleanField(default=None, null=True, blank=True, verbose_name="حالة الاستئناف", help_text="True: قيد الاستئناف, False: غير مستأنف, None: غير محدد")
+    case_status = models.CharField(max_length=20, choices=CASE_STATUS_CHOICES, default='pending', verbose_name="حالة القضية")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='cases', null=True, blank=True, verbose_name="الإدارة")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_cases', null=True, blank=True, verbose_name="أنشئ بواسطة")
+    lawyers = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='assigned_cases', blank=True, verbose_name="المحامون")
+    file = models.FileField(upload_to="cases/", blank=True, null=True, verbose_name="الملف")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ التحديث")
 
     class Meta:
         db_table = 'cases'
         ordering = ['-created_at']
+        verbose_name = "قضية"
+        verbose_name_plural = "القضايا"
+        indexes = [
+            models.Index(fields=['general_number']),
+            models.Index(fields=['case_number']),
+            models.Index(fields=['case_status']),
+            models.Index(fields=['date_received']),
+            models.Index(fields=['department', 'case_status']),
+        ]
 
     def __str__(self):
         return f"{self.case_number} - {self.plaintiff} vs {self.defendant}"

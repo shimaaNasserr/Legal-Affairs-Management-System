@@ -108,7 +108,5 @@ class CaseAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-# تحسين عناوين الادمن
-admin.site.site_header = "نظام إدارة الشئون القانونية"
-admin.site.site_title = "إدارة القضايا"
-admin.site.index_title = "مرحبا بك في لوحة التحكم"
+# تحسين عناوين الادمن - يجب أن تكون في ملف منفصل أو في urls.py
+# سيتم نقلها إلى urls.py

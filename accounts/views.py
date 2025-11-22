@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate
@@ -6,7 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .serializers import RegisterSerializer, UserSerializer, LoginSerializer
 from rest_framework.views import APIView
-from .permissions import IsLawyer
+from .permissions import IsLawyer, IsPresident, IsGeneralManager
 from .models import Role
 from .serializers import RoleSerializer
 from django.contrib.auth import get_user_model
@@ -15,6 +15,9 @@ from accounts.models import Role, Department
 from django.shortcuts import get_object_or_404
 from accounts.models import User
 from .serializers import UserDetailSerializer
+from rest_framework.exceptions import PermissionDenied
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
 
 
 User = get_user_model()
@@ -65,7 +68,9 @@ class UserDetailSerializer(serializers.ModelSerializer):
         fields = super().get_fields()
         request_user = self.context['request'].user
 
-        if not request_user.is_superuser and request_user.role.name != "president":
+        # التحقق من وجود role قبل الوصول إلى name
+        role_name = request_user.role_name
+        if not request_user.is_superuser and role_name and role_name.lower() != "president":
             # المستخدم العادي لا يستطيع تعديل الدور، الإدارة، assigned_lawyer
             for field in ["role", "department", "assigned_lawyer", "email"]:
                 fields[field].read_only = True
@@ -107,17 +112,86 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
         user_role = getattr(request_user.role, "name", None)
 
         # المحامي: فقط السكرتاريه المرتبطين به
-        if user_role == "lawyer":
+        # توحيد الأسماء - مقارنة case-insensitive
+        if user_role and user_role.lower() == "lawyer":
             if obj.assigned_lawyer != request_user:
                 from rest_framework.exceptions import PermissionDenied
                 if self.request.method in ["PUT", "PATCH"]:
                     raise PermissionDenied("ليس لديك صلاحية تعديل هذا المستخدم.")
         
         # المستخدم العادي: فقط نفسه يمكنه التعديل
-        elif obj != request_user and not request_user.is_superuser and user_role != "president":
+        elif obj != request_user and not request_user.is_superuser and (not user_role or user_role.lower() != "president"):
             if self.request.method in ["PUT", "PATCH"]:
                 raise PermissionDenied("يمكنك تعديل بياناتك فقط.")
 
         return obj
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet لإدارة المستخدمين
+    فقط الرئيس ومدير العام يمكنهم الوصول
+    """
+    queryset = User.objects.all().select_related('role', 'department', 'assigned_lawyer')
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['role', 'department']
+    search_fields = ['username', 'email', 'first_name', 'last_name']
+
+    def get_serializer_class(self):
+        """اختيار Serializer حسب العملية"""
+        if self.action in ['create', 'update', 'partial_update']:
+            return UserDetailSerializer
+        return UserSerializer
+
+    def get_queryset(self):
+        """تخصيص QuerySet حسب دور المستخدم"""
+        user = self.request.user
+        role_name = user.role_name
+
+        # الرئيس ومدير العام: جميع المستخدمين
+        if role_name in ['President', 'GeneralManager']:
+            # فلترة حسب الدور إذا تم تمرير role في query params
+            role_filter = self.request.query_params.get('role', None)
+            if role_filter:
+                return User.objects.filter(role__name=role_filter).select_related('role', 'department', 'assigned_lawyer')
+            return User.objects.all().select_related('role', 'department', 'assigned_lawyer')
+
+        # باقي المستخدمين: لا يمكنهم الوصول
+        return User.objects.none()
+
+    def get_permissions(self):
+        """تحديد الصلاحيات حسب العملية"""
+        if self.action in ['list', 'retrieve']:
+            # فقط الرئيس ومدير العام يمكنهم عرض المستخدمين
+            return [IsAuthenticated(), (IsPresident() | IsGeneralManager())]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # فقط الرئيس يمكنه إنشاء/تعديل/حذف المستخدمين
+            return [IsAuthenticated(), IsPresident()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        """إنشاء مستخدم جديد"""
+        user = self.request.user
+        if user.role_name != 'President':
+            raise PermissionDenied("فقط الرئيس يمكنه إنشاء مستخدمين جدد")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        """تحديث مستخدم"""
+        user = self.request.user
+        if user.role_name != 'President':
+            raise PermissionDenied("فقط الرئيس يمكنه تعديل المستخدمين")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """حذف مستخدم"""
+        user = self.request.user
+        if user.role_name != 'President':
+            raise PermissionDenied("فقط الرئيس يمكنه حذف المستخدمين")
+        # منع حذف المستخدم الحالي
+        if instance == user:
+            raise PermissionDenied("لا يمكنك حذف نفسك")
+        instance.delete()
 
 

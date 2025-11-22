@@ -8,14 +8,8 @@ class IsAppealAllowed(permissions.BasePermission):
     
     def get_user_role(self, user):
         """الحصول على دور المستخدم كسلسلة نصية"""
-        if not hasattr(user, 'role') or not user.role:
-            return None
-        
-        # إذا كان role كائن، احصل على اسمه، وإلا حوله إلى سلسلة
-        if hasattr(user.role, 'name'):
-            return user.role.name
-        else:
-            return str(user.role)
+        # استخدام role_name property
+        return user.role_name
     
     def has_permission(self, request, view):
         user = request.user
