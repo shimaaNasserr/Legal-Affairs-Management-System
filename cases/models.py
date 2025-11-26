@@ -47,6 +47,18 @@ class Case(models.Model):
     file = models.FileField(upload_to="cases/", blank=True, null=True, verbose_name="الملف")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ التحديث")
+    OUTCOME_CHOICES = [
+        ('for_university', 'لصالح الجامعة'),
+        ('against_university', 'ضد الجامعة'),
+    ]
+    ruling = models.CharField(
+    max_length=20, 
+    choices=OUTCOME_CHOICES, 
+    blank=True, 
+    null=True, 
+    verbose_name="الحكم الصادر"
+    )
+    saved_date = models.DateField(blank=True, null=True, verbose_name="تاريخ الحفظ")
 
     class Meta:
         db_table = 'cases'
@@ -69,18 +81,19 @@ class Case(models.Model):
             raise ValidationError({'date_received': 'لا يمكن أن يكون تاريخ الاستلام في المستقبل'})
 
     def save(self, *args, **kwargs):
-        if not self.general_number:
+        # ----- احفظ الرقم العام لو مش مبعوت -----
+        if (self.general_number is None) or (self.general_number == ""):
             self.general_number = allocate_general_number()
 
+        # ----- تعيين الإدارة الافتراضية لو مش موجودة -----
         if not self.department_id:
             default_dept = Department.objects.first()
-            if default_dept:
-                self.department_id = default_dept.id
-            else:
-                self.department_id = None
+            self.department_id = default_dept.id if default_dept else None
 
+        # ----- حفظ عادي -----
         self.full_clean(exclude=['department'])
         super().save(*args, **kwargs)
+
 
 
 class LawyerSecretaryAccess(models.Model):
