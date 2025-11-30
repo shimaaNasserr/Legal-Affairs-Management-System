@@ -11,6 +11,8 @@ class InvestigationSerializer(serializers.ModelSerializer):
     assigned_investigators_details = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
+    # تجاوز فحص الخيارات الافتراضي للسماح بإرسال التسميات العربية
+    complainant_type = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     
     # حقل أسماء المتهمين كقائمة أو نص
     accused_names_list = serializers.SerializerMethodField()
@@ -37,6 +39,21 @@ class InvestigationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'general_number', 'created_at', 'updated_at']
     
+    def validate_complainant_type(self, value):
+        """Allow sending Arabic labels for complainant_type by mapping to keys."""
+        if value in (None, ""):
+            return None
+        # Accept valid keys directly
+        valid_keys = {k for k, _ in Investigation.COMPLAINANT_TYPE_CHOICES}
+        if value in valid_keys:
+            return value
+        # Map Arabic labels to keys
+        label_to_key = {label: key for key, label in Investigation.COMPLAINANT_TYPE_CHOICES}
+        mapped = label_to_key.get(value)
+        if mapped:
+            return mapped
+        raise serializers.ValidationError("قيمة غير صالحة لحقل نوع المشتكي")
+
     def get_assigned_investigators_details(self, obj):
         """إرجاع تفاصيل المحققين المعينين"""
         return [

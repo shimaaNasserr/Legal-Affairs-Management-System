@@ -1,4 +1,6 @@
 from rest_framework import viewsets, permissions, status
+from rest_framework.permissions import AllowAny
+from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
@@ -27,6 +29,12 @@ class InvestigationViewSet(viewsets.ModelViewSet):
     
     serializer_class = InvestigationSerializer
     permission_classes = [InvestigationPermissions, InvestigationViewPermissions]
+
+    def get_permissions(self):
+        # Development-only: disable auth for investigation CRUD to aid local testing
+        if getattr(settings, "DEBUG", False):
+            return [AllowAny()]
+        return super().get_permissions()
     
     # فلاتر البحث والترتيب
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -37,6 +45,8 @@ class InvestigationViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """تخصيص QuerySet حسب دور المستخدم"""
+        if getattr(settings, "DEBUG", False):
+            return Investigation.objects.all()
         user = self.request.user
         
         role_name = user.role_name
@@ -232,6 +242,12 @@ class AppealViewSet(viewsets.ModelViewSet):
     
     serializer_class = AppealSerializer
     permission_classes = [AppealPermissions]
+
+    def get_permissions(self):
+        # Development-only: disable auth for appeal CRUD to aid local testing
+        if getattr(settings, "DEBUG", False):
+            return [AllowAny()]
+        return super().get_permissions()
     
     # فلاتر البحث والترتيب
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -242,6 +258,8 @@ class AppealViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """تخصيص QuerySet حسب دور المستخدم"""
+        if getattr(settings, "DEBUG", False):
+            return Appeal.objects.all()
         user = self.request.user
         
         role_name = user.role_name

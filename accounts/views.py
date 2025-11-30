@@ -18,10 +18,17 @@ from .serializers import UserDetailSerializer
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from rest_framework import permissions
 
 
 User = get_user_model()
 
+class IsPresidentOrGeneralManager(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return IsPresident().has_permission(request, view) or IsGeneralManager().has_permission(request, view)
+    
+    def has_object_permission(self, request, view, obj):
+        return IsPresident().has_object_permission(request, view, obj) or IsGeneralManager().has_object_permission(request, view, obj)
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -164,7 +171,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """تحديد الصلاحيات حسب العملية"""
         if self.action in ['list', 'retrieve']:
             # فقط الرئيس ومدير العام يمكنهم عرض المستخدمين
-            return [IsAuthenticated(), (IsPresident() | IsGeneralManager())]
+            return [IsAuthenticated(), IsPresidentOrGeneralManager()]
         elif self.action in ['create', 'update', 'partial_update', 'destroy']:
             # فقط الرئيس يمكنه إنشاء/تعديل/حذف المستخدمين
             return [IsAuthenticated(), IsPresident()]

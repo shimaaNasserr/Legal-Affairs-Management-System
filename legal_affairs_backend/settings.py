@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 from dotenv import load_dotenv
 import cloudinary
 
@@ -98,6 +99,13 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ]
+}
+
+# SimpleJWT settings
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
+    # Keep refresh reasonable; adjust if needed
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 # Middleware

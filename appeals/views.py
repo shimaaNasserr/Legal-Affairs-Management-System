@@ -1,5 +1,7 @@
 # appeals/views.py
 from rest_framework import viewsets, filters, status,permissions
+from rest_framework.permissions import AllowAny
+from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,6 +16,12 @@ class AppealViewSet(viewsets.ModelViewSet):
     ).all()
     serializer_class = AppealSerializer
     permission_classes = [IsAppealAllowed]
+
+    def get_permissions(self):
+        # Development-only: disable auth for appeal CRUD to aid local testing
+        if getattr(settings, "DEBUG", False):
+            return [AllowAny()]
+        return super().get_permissions()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["investigation", "complainant", "department", "status"]
     search_fields = ["appeal_number", "appellant_name", "appeal_reason"]
@@ -22,13 +30,11 @@ class AppealViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """تخصيص الكويريست بناءً على الصلاحيات"""
+        if getattr(settings, "DEBUG", False):
+            return super().get_queryset()
         queryset = super().get_queryset()
         user = self.request.user
-        
-        print(f"=== DEBUG: User {user.username} requesting appeals ===")
-        print(f"Total appeals in DB: {Appeal.objects.count()}")
-        
-        # TEMPORARY: Return all appeals for testing
+        print(f"=== DEBUG: User {getattr(user, 'username', 'anon')} requesting appeals ===")
         return queryset
 
     def perform_create(self, serializer):
