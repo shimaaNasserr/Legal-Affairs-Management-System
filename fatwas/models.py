@@ -13,20 +13,21 @@ def allocate_general_number():
     now = timezone.now()
     year = now.year
     month = now.month
-    random_part = ''.join(random.choices(string.digits, k=5))
-    general_number = f"FTW-{year}-{month:02d}-{random_part}"
+    # Generate integer: YYYYMM + 5 random digits (e.g., 20251273668)
+    random_part = random.randint(10000, 99999)
+    general_number = int(f"{year}{month:02d}{random_part}")
     
     # التأكد من عدم تكرار الرقم
     Fatwa = apps.get_model('fatwas', 'Fatwa')
     while Fatwa.objects.filter(general_number=general_number).exists():
-        random_part = ''.join(random.choices(string.digits, k=5))
-        general_number = f"FTW-{year}-{month:02d}-{random_part}"
+        random_part = random.randint(10000, 99999)
+        general_number = int(f"{year}{month:02d}{random_part}")
     
     return general_number
 
 class Fatwa(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    general_number = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="الرقم العام")
+    general_number = models.BigIntegerField(unique=True, blank=True, null=True, verbose_name="الرقم العام")
     department = models.ForeignKey('accounts.Department', on_delete=models.CASCADE, verbose_name="الإدارة")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="أنشئ بواسطة")
     request_content = models.TextField(verbose_name="محتوى الطلب")
