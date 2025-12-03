@@ -1,11 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count
 
 from cases.models import Case
 from contracts.models import Contract
 from fatwas.models import Fatwa
 from investigations.models import Investigation
+from appeals.models import Appeal
 
 
 class ReportsSummaryView(APIView):
@@ -18,5 +20,24 @@ class ReportsSummaryView(APIView):
             "contracts": Contract.objects.count(),
             "fatwas": Fatwa.objects.count(),
             "investigations": Investigation.objects.count(),
+            "appeals": Appeal.objects.count(),
         }
+        return Response(data)
+
+
+class CasesByStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = Case.objects.values("case_status").annotate(total=Count("id")).order_by()
+        data = {row["case_status"] or "unknown": row["total"] for row in qs}
+        return Response(data)
+
+
+class ContractsByTypeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = Contract.objects.values("contract_type").annotate(total=Count("id")).order_by()
+        data = {row["contract_type"] or "unknown": row["total"] for row in qs}
         return Response(data)
