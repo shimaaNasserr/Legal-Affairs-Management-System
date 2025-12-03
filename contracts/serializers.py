@@ -33,6 +33,29 @@ class ContractSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_by"]
 
+    def validate(self, attrs):
+        # Ensure required fields on create
+        creating = self.instance is None
+        required_fields = [
+            "date_received",
+            "contract_number",
+            "contract_type",
+            "content",
+            "progress",
+        ]
+        if creating:
+            missing = [f for f in required_fields if not attrs.get(f)]
+            if missing:
+                raise serializers.ValidationError({"fields": f"الحقول مطلوبة: {', '.join(missing)}"})
+
+            # Department required if user has none
+            request = self.context.get("request")
+            user_dept = getattr(getattr(getattr(request, "user", None), "department", None), "id", None)
+            if not attrs.get("department") and not user_dept:
+                raise serializers.ValidationError({"department": "يجب تحديد الإدارة."})
+
+        return attrs
+
     def validate_contract_type(self, value):
         valid_values = {c[0] for c in Contract.CONTRACT_TYPES}
         if value not in valid_values:

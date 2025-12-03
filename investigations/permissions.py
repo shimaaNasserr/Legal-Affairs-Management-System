@@ -27,7 +27,7 @@ class InvestigationPermissions(permissions.BasePermission):
         user = request.user
         
         # الحصول على اسم الدور
-        role_name = user.role.name if user.role else None
+        role_name = user.role_name
         
         # President و GeneralManager: صلاحيات كاملة
         if role_name in ['President', 'GeneralManager']:
@@ -87,7 +87,7 @@ class AppealPermissions(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         """التحقق من الصلاحية على كائن محدد"""
         user = request.user
-        role_name = user.role.name if user.role else None
+        role_name = user.role_name
         
         # President و GeneralManager: صلاحيات كاملة
         if role_name in ['President', 'GeneralManager']:
@@ -136,7 +136,7 @@ class InvestigationViewPermissions(permissions.BasePermission):
             return False
         
         user = request.user
-        role_name = user.role.name if user.role else None
+        role_name = user.role_name
         action = getattr(view, 'action', None)
         
         # الصلاحيات حسب العملية

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Case, LawyerSecretaryAccess
+from .models import Case
 
 
 @admin.register(Case)
@@ -108,40 +108,5 @@ class CaseAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-
-@admin.register(LawyerSecretaryAccess)
-class LawyerSecretaryAccessAdmin(admin.ModelAdmin):
-    list_display = [
-        'lawyer', 
-        'secretary',
-        'lawyer_department',
-        'secretary_department',
-    ]
-    
-    list_filter = [
-        'lawyer__department',
-        'secretary__department',
-    ]
-    
-    search_fields = [
-        'lawyer__username',
-        'secretary__username',
-        'lawyer__department__name',
-        'secretary__department__name'
-    ]
-    
-    def lawyer_department(self, obj):
-        """عرض قسم المحامي"""
-        return obj.lawyer.department.name if obj.lawyer.department else '—'
-    lawyer_department.short_description = 'قسم المحامي'
-    
-    def secretary_department(self, obj):
-        """عرض قسم السكرتيرة"""
-        return obj.secretary.department.name if obj.secretary.department else '—'
-    secretary_department.short_description = 'قسم السكرتيرة'
-
-
-# تحسين عناوين الادمن
-admin.site.site_header = "نظام إدارة الشئون القانونية"
-admin.site.site_title = "إدارة القضايا"
-admin.site.index_title = "مرحبا بك في لوحة التحكم"
+# تحسين عناوين الادمن - يجب أن تكون في ملف منفصل أو في urls.py
+# سيتم نقلها إلى urls.py

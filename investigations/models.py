@@ -7,6 +7,10 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.apps import apps
 from accounts.models import Department
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
 
 
 def allocate_general_number():
@@ -184,6 +188,13 @@ class Investigation(models.Model):
         ordering = ['-created_at']
         verbose_name = "تحقيق"
         verbose_name_plural = "التحقيقات"
+        indexes = [
+            models.Index(fields=['general_number']),
+            models.Index(fields=['status']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['date_received']),
+            models.Index(fields=['department', 'status']),
+        ]
     
     def __str__(self):
         return f"{self.general_number} - {self.title}"
@@ -255,8 +266,22 @@ class Appeal(models.Model):
         verbose_name="التحقيق"
     )
     
+    complainant = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE,
+        related_name="appeals",
+        verbose_name="المشتكي",
+        null=True,  # Add this temporarily
+        blank=True  # Add this temporarily
+    )
+    
     # تفاصيل الاستئناف
-    appeal_number = models.CharField(max_length=100, unique=True, verbose_name="رقم الاستئناف")
+    appeal_number = models.CharField(
+        max_length=100, 
+        unique=True, 
+        blank=True,  # ADD THIS - allows empty for auto-generation
+        verbose_name="رقم الاستئناف"
+    )
     appellant_name = models.CharField(max_length=200, verbose_name="اسم المستأنف")
     appeal_reason = models.TextField(verbose_name="سبب الاستئناف")
     
@@ -281,6 +306,15 @@ class Appeal(models.Model):
         blank=True,
         null=True,
         verbose_name="ملف الاستئناف"
+    )
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name='appeals',
+        verbose_name="الإدارة",
+        null=True,  # مؤقتاً للترحيل
+        blank=True  # مؤقتاً للترحيل
     )
     
     # المستخدم
@@ -309,12 +343,19 @@ class Appeal(models.Model):
         ordering = ['-created_at']
         verbose_name = "استئناف"
         verbose_name_plural = "الاستئنافات"
+        indexes = [
+            models.Index(fields=['appeal_number']),
+            models.Index(fields=['status']),
+            models.Index(fields=['date_submitted']),
+            models.Index(fields=['investigation', 'status']),
+        ]
     
     def __str__(self):
         return f"{self.appeal_number} - {self.appellant_name}"
     
     def clean(self):
         """التحقق من صحة البيانات"""
+        # التحقق من التواريخ
         if self.date_submitted and self.date_submitted > timezone.now().date():
             raise ValidationError({
                 'date_submitted': 'لا يمكن أن يكون تاريخ تقديم الاستئناف في المستقبل'
@@ -324,3 +365,44 @@ class Appeal(models.Model):
             raise ValidationError({
                 'date_reviewed': 'لا يمكن أن يكون تاريخ المراجعة قبل تاريخ التقديم'
             })
+        
+        # التحقق من توافق الإدارة مع التحقيق
+        if self.investigation and self.department and self.investigation.department != self.department:
+            raise ValidationError({
+                'department': 'يجب أن تكون الإدارة مطابقة لإدارة التحقيق'
+            })
+    
+    def save(self, *args, **kwargs):
+        """حفظ النموذج مع تخصيص الرقم تلقائياً"""
+        # FIX: Use appeal_number instead of general_number
+        if not self.appeal_number:
+            self.appeal_number = self.allocate_appeal_number()
+        
+        # تعيين الإدارة من التحقيق إذا لم تُحدد
+        if not self.department_id and self.investigation:
+            self.department = self.investigation.department
+        
+        # تعيين المشتكي تلقائياً إذا لم يُحدد
+        if not self.complainant_id and self.created_by:
+            self.complainant = self.created_by
+        
+        super().save(*args, **kwargs)
+    
+    def allocate_appeal_number(self):
+        """تخصيص رقم فريد للاستئناف"""
+        now = timezone.now()
+        year = now.year
+        month = now.month
+        random_part = ''.join(random.choices(string.digits, k=5))
+        appeal_number = f"APL-{year}-{month:02d}-{random_part}"
+        
+        # استخدام self.__class__ بدلاً من Appeal مباشرة
+        while self.__class__.objects.filter(appeal_number=appeal_number).exists():
+            random_part = ''.join(random.choices(string.digits, k=5))
+            appeal_number = f"APL-{year}-{month:02d}-{random_part}"
+        
+        return appeal_number
+    
+    def can_be_deleted(self):
+        """التحقق من إمكانية حذف الاستئناف"""
+        return self.investigation.status not in ['closed', 'completed']

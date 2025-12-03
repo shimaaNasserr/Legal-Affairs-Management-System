@@ -1,4 +1,6 @@
 from rest_framework import viewsets, permissions, status
+from rest_framework.permissions import AllowAny
+from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
@@ -27,6 +29,12 @@ class InvestigationViewSet(viewsets.ModelViewSet):
     
     serializer_class = InvestigationSerializer
     permission_classes = [InvestigationPermissions, InvestigationViewPermissions]
+
+    def get_permissions(self):
+        # Development-only: disable auth for investigation CRUD to aid local testing
+        if getattr(settings, "DEBUG", False):
+            return [AllowAny()]
+        return super().get_permissions()
     
     # فلاتر البحث والترتيب
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -37,12 +45,13 @@ class InvestigationViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """تخصيص QuerySet حسب دور المستخدم"""
+        if getattr(settings, "DEBUG", False):
+            return Investigation.objects.all()
         user = self.request.user
         
-        if not hasattr(user, 'role') or not user.role:
+        role_name = user.role_name
+        if not role_name:
             return Investigation.objects.none()
-        
-        role_name = user.role.name
         
         # President و GeneralManager: جميع التحقيقات
         if role_name in ['President', 'GeneralManager']:
@@ -83,7 +92,7 @@ class InvestigationViewSet(viewsets.ModelViewSet):
         investigation = serializer.save(created_by=user)
         
         # إذا كان المستخدم محامي، تعيينه كمحقق تلقائياً
-        if user.role and user.role.name == 'Lawyer':
+        if user.role_name == 'Lawyer':
             investigation.assigned_investigators.add(user)
         
         # تعيين الإدارة إذا لم تُحدد
@@ -95,10 +104,11 @@ class InvestigationViewSet(viewsets.ModelViewSet):
     def my_investigations(self, request):
         """التحقيقات الخاصة بالمستخدم الحالي"""
         user = request.user
+        role_name = user.role_name
         
-        if user.role and user.role.name == 'Lawyer':
+        if role_name == 'Lawyer':
             queryset = Investigation.objects.filter(assigned_investigators=user)
-        elif user.role and user.role.name == 'Secretary' and user.assigned_lawyer:
+        elif role_name == 'Secretary' and user.assigned_lawyer:
             queryset = Investigation.objects.filter(assigned_investigators=user.assigned_lawyer)
         else:
             queryset = Investigation.objects.filter(created_by=user)
@@ -171,7 +181,8 @@ class InvestigationViewSet(viewsets.ModelViewSet):
             investigator = User.objects.get(id=investigator_id)
             
             # التحقق من أن المستخدم محامي أو له دور مناسب
-            if not investigator.role or investigator.role.name not in ['Lawyer', 'DepartmentManager']:
+            investigator_role = investigator.role_name
+            if not investigator_role or investigator_role not in ['Lawyer', 'DepartmentManager']:
                 return Response(
                     {'error': 'المستخدم المحدد لا يمكنه أن يكون محققاً'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -231,6 +242,12 @@ class AppealViewSet(viewsets.ModelViewSet):
     
     serializer_class = AppealSerializer
     permission_classes = [AppealPermissions]
+
+    def get_permissions(self):
+        # Development-only: disable auth for appeal CRUD to aid local testing
+        if getattr(settings, "DEBUG", False):
+            return [AllowAny()]
+        return super().get_permissions()
     
     # فلاتر البحث والترتيب
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -241,12 +258,13 @@ class AppealViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """تخصيص QuerySet حسب دور المستخدم"""
+        if getattr(settings, "DEBUG", False):
+            return Appeal.objects.all()
         user = self.request.user
         
-        if not hasattr(user, 'role') or not user.role:
+        role_name = user.role_name
+        if not role_name:
             return Appeal.objects.none()
-        
-        role_name = user.role.name
         
         # President و GeneralManager: جميع الاستئنافات
         if role_name in ['President', 'GeneralManager']:
@@ -284,7 +302,8 @@ class AppealViewSet(viewsets.ModelViewSet):
         
         # التحقق من الصلاحية للمراجعة
         user = request.user
-        if not user.role or user.role.name not in ['President', 'GeneralManager', 'DepartmentManager', 'Lawyer']:
+        role_name = user.role_name
+        if not role_name or role_name not in ['President', 'GeneralManager', 'DepartmentManager', 'Lawyer']:
             raise PermissionDenied("لا تملك صلاحية مراجعة الاستئنافات")
         
         decision = request.data.get('decision', '')

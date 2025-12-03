@@ -1,3 +1,4 @@
+import ast
 from rest_framework import serializers
 from .models import Investigation, Appeal
 from accounts.models import User
@@ -11,16 +12,18 @@ class InvestigationSerializer(serializers.ModelSerializer):
     assigned_investigators_details = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
+    # تجاوز فحص الخيارات الافتراضي للسماح بإرسال التسميات العربية
+    complainant_type = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     
-    # حقل أسماء المتهمين كقائمة أو نص
-    accused_names_list = serializers.SerializerMethodField()
-    accused_names_input = serializers.ListField(
-        child=serializers.CharField(max_length=100),
+    # FRONTEND sends list → هذا الحقل يستقبلها
+    accused_names = serializers.ListField(
+        child=serializers.CharField(),
         write_only=True,
-        required=False,
-        help_text="قائمة بأسماء المتهمين"
+        required=False
     )
-    
+
+    # BACKEND returns list → هذا الحقل يعرضها
+    accused_names_list = serializers.SerializerMethodField(read_only=True)
     # إحصائيات الاستئنافات
     appeals_count = serializers.SerializerMethodField()
     
@@ -28,7 +31,7 @@ class InvestigationSerializer(serializers.ModelSerializer):
         model = Investigation
         fields = [
             'id', 'general_number', 'title', 'description', 'accused_names', 
-            'accused_names_list', 'accused_names_input', 'date_received', 
+            'accused_names_list', 'date_received', 
             'date_started', 'date_completed', 'status', 'priority', 'case_type',
             'complainant_type', 'complainant_name', 'complainant_id', 'faculty_college',
             'notes', 'findings', 'recommendations', 'file', 'department', 'department_name',
@@ -37,6 +40,22 @@ class InvestigationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'general_number', 'created_at', 'updated_at']
     
+
+    def validate_complainant_type(self, value):
+        """Allow sending Arabic labels for complainant_type by mapping to keys."""
+        if value in (None, ""):
+            return None
+        # Accept valid keys directly
+        valid_keys = {k for k, _ in Investigation.COMPLAINANT_TYPE_CHOICES}
+        if value in valid_keys:
+            return value
+        # Map Arabic labels to keys
+        label_to_key = {label: key for key, label in Investigation.COMPLAINANT_TYPE_CHOICES}
+        mapped = label_to_key.get(value)
+        if mapped:
+            return mapped
+        raise serializers.ValidationError("قيمة غير صالحة لحقل نوع المشتكي")
+
     def get_assigned_investigators_details(self, obj):
         """إرجاع تفاصيل المحققين المعينين"""
         return [
@@ -51,7 +70,27 @@ class InvestigationSerializer(serializers.ModelSerializer):
     
     def get_accused_names_list(self, obj):
         """إرجاع أسماء المتهمين كقائمة"""
-        return obj.get_accused_names_list()
+        raw = obj.accused_names or ""
+        if not raw:
+            return []
+        
+        # Handle case where data might be stored as string representation of a list
+        # e.g., "['احمد', 'محمد', 'محمود']" or "['احمد", "محمد", "محمود']"
+        raw = raw.strip()
+        
+        # Check if it looks like a string representation of a list
+        if raw.startswith('[') and raw.endswith(']'):
+            try:
+                # Try to safely evaluate the string as a Python list
+                parsed = ast.literal_eval(raw)
+                if isinstance(parsed, list):
+                    return [str(name).strip() for name in parsed if name]
+            except (ValueError, SyntaxError):
+                # If parsing fails, fall back to comma splitting
+                pass
+        
+        # Default: split by comma (normal case)
+        return [name.strip() for name in raw.split(",") if name.strip()]
     
     def get_appeals_count(self, obj):
         """إرجاع عدد الاستئنافات المرتبطة"""
@@ -90,16 +129,17 @@ class InvestigationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """إنشاء تحقيق جديد"""
         # استخراج أسماء المتهمين إذا تم إرسالها كقائمة
-        accused_names_input = validated_data.pop('accused_names_input', None)
+        names = validated_data.pop('accused_names', [])
         assigned_investigators_data = validated_data.pop('assigned_investigators', [])
+        
+        # تحويل القائمة إلى نص مفصول بفواصل
+        if names:
+            validated_data["accused_names"] = ", ".join(str(name) for name in names if name)
+        else:
+            validated_data["accused_names"] = ""
         
         # إنشاء التحقيق
         investigation = Investigation.objects.create(**validated_data)
-        
-        # تعيين أسماء المتهمين
-        if accused_names_input:
-            investigation.set_accused_names_list(accused_names_input)
-            investigation.save()
         
         # تعيين المحققين
         if assigned_investigators_data:
@@ -110,7 +150,7 @@ class InvestigationSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """تحديث التحقيق"""
         # استخراج أسماء المتهمين إذا تم إرسالها كقائمة
-        accused_names_input = validated_data.pop('accused_names_input', None)
+        names = validated_data.pop('accused_names', None)
         assigned_investigators_data = validated_data.pop('assigned_investigators', None)
         
         # تحديث الحقول الأخرى
@@ -118,8 +158,11 @@ class InvestigationSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         
         # تحديث أسماء المتهمين
-        if accused_names_input is not None:
-            instance.set_accused_names_list(accused_names_input)
+        if names is not None:
+            if names:
+                instance.accused_names = ", ".join(str(name) for name in names if name)
+            else:
+                instance.accused_names = ""
         
         instance.save()
         

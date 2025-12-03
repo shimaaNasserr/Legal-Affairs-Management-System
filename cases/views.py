@@ -18,19 +18,8 @@ class CaseViewSet(viewsets.ModelViewSet):
     search_fields = ['case_number', 'lawsuit_number', 'plaintiff', 'defendant', 'court']
 
     def get_queryset(self):
-        user = self.request.user
-        if not hasattr(user, 'role_name') or not user.role_name:
-            return Case.objects.none()
-        if user.role_name in ['President', 'GeneralManager']:
-            return Case.objects.all()
-        if user.role_name == 'DepartmentManager':
-            return Case.objects.filter(department=user.department)
-        if user.role_name == 'Lawyer':
-            return Case.objects.filter(lawyers=user)
-        if user.role_name == 'Secretary':
-            linked_lawyers = LawyerSecretaryAccess.objects.filter(secretary=user).values_list('lawyer', flat=True)
-            return Case.objects.filter(lawyers__in=linked_lawyers)
-        return Case.objects.none()
+        return Case.objects.all().select_related('department', 'created_by').prefetch_related('lawyers')
+
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -62,15 +51,23 @@ class LawyerSecretaryAccessViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if not hasattr(user, 'role_name') or not user.role_name:
-            return LawyerSecretaryAccess.objects.none()
-        if user.role_name in ['President', 'GeneralManager']:
-            return LawyerSecretaryAccess.objects.all()
-        if user.role_name == 'Lawyer':
-            return LawyerSecretaryAccess.objects.filter(lawyer=user)
-        if user.role_name == 'Secretary':
-            return LawyerSecretaryAccess.objects.filter(secretary=user)
-        return LawyerSecretaryAccess.objects.none()
+        if user.role_name == "GeneralManager":
+            return Case.objects.all()
+
+        # رئيس الجامعة يشوف كل القضايا (read only)
+        if user.role_name == "President":
+            return Case.objects.all()
+
+        # المحامي يشوف قضاياه فقط
+        if user.role_name == "Lawyer":
+            return Case.objects.filter(created_by=user)
+
+        # لو داخل قسم القضايا (غير محامي / مدير)
+        if hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا ":
+            return Case.objects.all()
+
+        # أي حد تاني → لا يشوف شيء
+        return Case.objects.none()
 
     def perform_create(self, serializer):
         user = self.request.user

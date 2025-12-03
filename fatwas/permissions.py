@@ -6,12 +6,9 @@ class FatwaPermission(permissions.BasePermission):
         if not user or not user.is_authenticated:
             return False
 
-        role_name = None
-        try:
-            role_name = (user.role.name if hasattr(user, "role") and user.role else None) or None
-        except Exception:
-            role_name = None
-
+        # استخدام role_name property
+        role_name = user.role_name
+        
         # Normalize
         role_name = (role_name or "").lower()
 

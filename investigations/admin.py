@@ -52,9 +52,8 @@ class InvestigationAdmin(admin.ModelAdmin):
             return qs
         
         # إذا كان له دور، تطبيق الفلاتر حسب الدور
-        if hasattr(request.user, 'role') and request.user.role:
-            role_name = request.user.role.name
-            
+        role_name = request.user.role_name
+        if role_name:
             if role_name in ['President', 'GeneralManager']:
                 return qs
             elif role_name == 'DepartmentManager':
@@ -114,9 +113,8 @@ class AppealAdmin(admin.ModelAdmin):
             return qs
         
         # إذا كان له دور، تطبيق الفلاتر حسب الدور
-        if hasattr(request.user, 'role') and request.user.role:
-            role_name = request.user.role.name
-            
+        role_name = request.user.role_name
+        if role_name:
             if role_name in ['President', 'GeneralManager']:
                 return qs
             elif role_name == 'DepartmentManager':

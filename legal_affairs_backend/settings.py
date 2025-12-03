@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 from dotenv import load_dotenv
 import cloudinary
 
@@ -61,8 +62,9 @@ INSTALLED_APPS = [
     'fatwas',
     'departments',
     'investigations',
-
+    'appeals',
     "cases",
+    "courts",
 
     # REST Framework
     "rest_framework",
@@ -97,6 +99,13 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ]
+}
+
+# SimpleJWT settings
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
+    # Keep refresh reasonable; adjust if needed
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 # Middleware
@@ -143,10 +152,22 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+LANGUAGE_CODE = "ar"
+TIME_ZONE = "Africa/Cairo"  # أو "Asia/Riyadh" حسب المنطقة
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
+
+# اللغات المدعومة
+LANGUAGES = [
+    ('ar', 'العربية'),
+    ('en', 'English'),
+]
+
+# مسار ملفات الترجمة
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 
 # Static files
 STATIC_URL = "/static/"
