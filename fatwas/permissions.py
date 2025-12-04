@@ -20,7 +20,25 @@ class FatwaPermission(permissions.BasePermission):
             return request.method in permissions.SAFE_METHODS or request.method in ["POST", "PUT", "PATCH", "DELETE"]
 
         if role_name in ["lawyer", "secretary"]:
-            # Read and create only
-            return request.method in ["GET", "POST"]
+            # Read-only
+            return request.method in permissions.SAFE_METHODS
 
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        role_name = (getattr(user, "role_name", None) or "").lower()
+
+        if request.method in permissions.SAFE_METHODS:
+            # Admins see all, others only their department
+            if role_name in ["president", "general_manager"]:
+                return True
+            return obj.department_id == getattr(getattr(user, "department", None), "id", None)
+
+        # Write operations
+        if role_name in ["president", "general_manager"]:
+            return True
+        if role_name == "department_manager":
+            return obj.department_id == getattr(getattr(user, "department", None), "id", None)
+        # Lawyers/secretaries cannot modify/delete
         return False
