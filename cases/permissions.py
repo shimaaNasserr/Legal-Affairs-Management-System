@@ -1,70 +1,62 @@
+# permissions.py
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 class CasePermissions(BasePermission):
+    """
+    الصلاحيات:
+    - GeneralManager و DepartmentManager (إدارة القضايا) لهم كل الصلاحيات
+    - President: قراءة فقط
+    - Lawyer (إدارة القضايا): يضيف ويعدل القضايا التي أنشأها
+    """
 
     def has_permission(self, request, view):
         user = request.user
-
-        # لازم يكون مسجل دخول
         if not user.is_authenticated:
             return False
 
-        # أي حد داخل قسم القضايا يدخل على صفحة القضايا
-        if hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
-            return True
-
-        # رئيس الجامعة يشوف كل القضايا (قراءة فقط)
+        # President: read-only
         if user.role_name == "President":
-            if request.method in SAFE_METHODS:
-                return True
-            return False   # لا تعديل ولا إضافة
+            return request.method in SAFE_METHODS
 
-        # مدير إدارة القضايا يشوف ويعمل CRUD كامل
+        # GeneralManager: full access
         if user.role_name == "GeneralManager":
             return True
 
-        # المحامي: إضافة + قراءة + تعديل قضاياه فقط
-        if user.role_name == "Lawyer":
-            if request.method in SAFE_METHODS:
+        # DepartmentManager: full access فقط لإدارة القضايا
+        if user.role_name == "DepartmentManager":
+            if hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
                 return True
-            if request.method == "POST":
-                return True
-            return True  # object-level permission هتتحكم بعدها
+            return False
 
-        # أي دور تاني → مالوش علاقة
+        # Lawyer: read + create
+        if user.role_name == "Lawyer" and hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
+            if request.method in SAFE_METHODS or request.method == "POST":
+                return True
+            # تعديل/حذف سيُتحكم فيه بالـ object-level
+            return True
+
+        # أي دور آخر: لا صلاحية
         return False
-
 
     def has_object_permission(self, request, view, obj):
         user = request.user
 
-        # Read-only requests allowed for President + Cases department
+        # Read-only requests
         if request.method in SAFE_METHODS:
-            # رئيس الجامعة
-            if user.role_name == "President":
+            if user.role_name in ["President", "GeneralManager"]:
                 return True
-            # قسم القضايا
-            if hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
+            if user.role_name == "DepartmentManager" and hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
                 return True
-            # المحامي يشوف قضاياه فقط
-            if user.role_name == "Lawyer":
-                return obj.created_by == user
+            if user.role_name == "Lawyer" and obj.created_by == user:
+                return True
             return False
 
-        # WRITE permissions
-
-        # مدير إدارة القضايا يقدر يعدّل أي قضية
-        if (user.role_name == "GeneralManager" or
-            (user.role_name == "DepartmentManager" and
-            hasattr(user, "department") and
-            user.department and
-            user.department.name == "إدارة القضايا")):
+        # Write requests
+        if user.role_name == "GeneralManager":
             return True
-
-
-        # المحامي يقدر يعدّل قضاياه فقط
+        if user.role_name == "DepartmentManager" and hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
+            return True
         if user.role_name == "Lawyer":
             return obj.created_by == user
 
-        # الباقي → مالوش أي صلاحية تعديل
         return False

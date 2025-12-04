@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Case, LawyerSecretaryAccess
+from .models import Case
 from accounts.models import User
 from django.utils import timezone
 
@@ -106,28 +106,3 @@ class CaseSerializer(serializers.ModelSerializer):
             instance.lawyers.set(lawyers_data)
         return instance
 
-# ======= Serializer for Lawyer-Secretary Access =======
-class LawyerSecretaryAccessSerializer(serializers.ModelSerializer):
-    lawyer_name = serializers.CharField(source='lawyer.username', read_only=True)
-    secretary_name = serializers.CharField(source='secretary.username', read_only=True)
-    lawyer_email = serializers.CharField(source='lawyer.email', read_only=True)
-    secretary_email = serializers.CharField(source='secretary.email', read_only=True)
-
-    class Meta:
-        model = LawyerSecretaryAccess
-        fields = [
-            'id',
-            'lawyer',
-            'lawyer_name',
-            'lawyer_email',
-            'secretary',
-            'secretary_name',
-            'secretary_email'
-        ]
-
-    def validate(self, data):
-        if getattr(data['lawyer'], 'role_name', '').lower() != 'lawyer':
-            raise serializers.ValidationError({"lawyer": "المستخدم المحدد ليس محامياً"})
-        if getattr(data['secretary'], 'role_name', '').lower() != 'secretary':
-            raise serializers.ValidationError({"secretary": "المستخدم المحدد ليس سكرتيرة"})
-        return data
