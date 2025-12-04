@@ -2,10 +2,8 @@ from django.contrib import admin
 from django.urls import path , include
 
 from rest_framework.routers import DefaultRouter
-from django.conf import settings
-from django.conf.urls.static import static
 from appeals.views import AppealViewSet
-from .views import ReportsSummaryView, CasesByStatusView, ContractsByTypeView
+from .views import ReportsSummaryView
 
 
 router = DefaultRouter()
@@ -28,9 +26,4 @@ urlpatterns = [
     path("api/departments/", include("departments.urls")),
     path("api/contracts/", include("contracts.urls")),
     path("api/reports/summary/", ReportsSummaryView.as_view()),
-    path("api/reports/cases_by_status/", CasesByStatusView.as_view()),
-    path("api/reports/contracts_by_type/", ContractsByTypeView.as_view()),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
