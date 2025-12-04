@@ -1,29 +1,65 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
+# views.py
+from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
-from rest_framework.exceptions import PermissionDenied
-
-from .models import Case, LawyerSecretaryAccess
-from .serializers import CaseSerializer, LawyerSecretaryAccessSerializer
+from .models import Case
+from .serializers import CaseSerializer
 from .permissions import CasePermissions
 
 class CaseViewSet(viewsets.ModelViewSet):
-    queryset = Case.objects.all().select_related('department', 'created_by').prefetch_related('lawyers')
     serializer_class = CaseSerializer
     permission_classes = [CasePermissions]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['department', 'case_status', 'appeal_status']
-    search_fields = ['case_number', 'lawsuit_number', 'plaintiff', 'defendant', 'court']
+    search_fields = ['case_number', 'lawsuit_number', 'plaintiff', 'defendant', 'court__name']
 
     def get_queryset(self):
-        return Case.objects.all().select_related('department', 'created_by').prefetch_related('lawyers')
+        user = self.request.user
+        qs = Case.objects.select_related('department', 'created_by').prefetch_related('lawyers')
 
+        if user.role_name == "GeneralManager":
+            return qs
+        if user.role_name == "DepartmentManager":
+            if user.department and user.department.name == "إدارة القضايا":
+                return qs
+            return Case.objects.none()
+        if user.role_name == "President":
+            return qs
+        if user.role_name == "Lawyer":
+            if user.department and user.department.name == "إدارة القضايا":
+                return qs.filter(created_by=user)
+            return Case.objects.none()
+        return Case.objects.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        serializer.save(created_by=user)
+        print(f"Trying to create case with user: {user.username} - {user.role_name} {getattr(user.department, 'name', None)}")  # debug
+        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+            serializer.save(created_by=user)
+        elif user.role_name == "Lawyer" and user.department and user.department.name == "إدارة القضايا":
+            serializer.save(created_by=user)
+        else:
+            raise PermissionDenied("ليس لديك صلاحية إضافة قضية")
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        case = self.get_object()
+        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+            serializer.save()
+        elif user.role_name == "Lawyer" and case.created_by == user:
+            serializer.save()
+        else:
+            raise PermissionDenied("ليس لديك صلاحية تعديل هذه القضية")
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+            instance.delete()
+        else:
+            raise PermissionDenied("ليس لديك صلاحية حذف هذه القضية")
 
     @action(detail=False, methods=['get'], url_path='my-cases')
     def my_cases(self, request):
@@ -43,37 +79,3 @@ class CaseViewSet(viewsets.ModelViewSet):
             'appealed': queryset.filter(appeal_status=True).count(),
         }
         return Response(stats)
-
-class LawyerSecretaryAccessViewSet(viewsets.ModelViewSet):
-    queryset = LawyerSecretaryAccess.objects.select_related('lawyer', 'secretary')
-    serializer_class = LawyerSecretaryAccessSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.role_name == "GeneralManager":
-            return Case.objects.all()
-
-        # رئيس الجامعة يشوف كل القضايا (read only)
-        if user.role_name == "President":
-            return Case.objects.all()
-
-        # المحامي يشوف قضاياه فقط
-        if user.role_name == "Lawyer":
-            return Case.objects.filter(created_by=user)
-
-        # لو داخل قسم القضايا (غير محامي / مدير)
-        if hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا ":
-            return Case.objects.all()
-
-        # أي حد تاني → لا يشوف شيء
-        return Case.objects.none()
-
-    def perform_create(self, serializer):
-        user = self.request.user
-        if user.role_name == 'Lawyer':
-            serializer.save(lawyer=user)
-        elif user.role_name in ['President', 'GeneralManager']:
-            serializer.save()
-        else:
-            raise PermissionDenied("لا تملك صلاحية إنشاء هذا الربط")
