@@ -3,7 +3,7 @@ from django.urls import path , include
 
 from rest_framework.routers import DefaultRouter
 from appeals.views import AppealViewSet
-from .views import ReportsSummaryView
+from .views import ReportsSummaryView 
 
 
 router = DefaultRouter()
@@ -26,4 +26,6 @@ urlpatterns = [
     path("api/departments/", include("departments.urls")),
     path("api/contracts/", include("contracts.urls")),
     path("api/reports/summary/", ReportsSummaryView.as_view()),
+
+
 ]

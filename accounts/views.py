@@ -20,6 +20,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from rest_framework import permissions
 
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.conf import settings
+from .models import PasswordResetToken
+from rest_framework.exceptions import AuthenticationFailed
+from google.oauth2 import id_token
+from google.auth.transport import requests
+
 
 User = get_user_model()
 
@@ -202,3 +211,89 @@ class UserViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+
+
+class RequestPasswordReset(APIView):
+    permission_classes = []  
+
+    def post(self, request):
+        email = request.data.get("email")
+        if not email:
+            return Response({"message": "يرجى إدخال البريد الإلكتروني"}, status=400)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"message": "البريد غير مسجل"}, status=404)
+
+        # إنشاء توكن جديد
+        reset_token = PasswordResetToken.objects.create(user=user)
+
+        reset_link = f"http://localhost:5173/reset-password/{reset_token.token}"
+
+        # إرسال الإيميل
+        try:
+            send_mail(
+                subject="إعادة تعيين كلمة المرور",
+                message=f"اضغط على الرابط التالي لإعادة تعيين كلمة المرور:\n{reset_link}",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            return Response({"message": "حدث خطأ أثناء إرسال الإيميل", "error": str(e)}, status=500)
+
+        return Response({"message": "تم إرسال رابط إعادة تعيين كلمة المرور للإيميل"})
+    
+
+
+class PasswordResetConfirm(APIView):
+
+    permission_classes = []  
+    def post(self, request):
+        token = request.data.get("token")
+        new_password = request.data.get("password")
+
+        try:
+            token_obj = PasswordResetToken.objects.get(token=token)
+        except PasswordResetToken.DoesNotExist:
+            return Response({"message": "الرابط غير صالح"}, status=400)
+        
+
+        user = token_obj.user
+        user.set_password(new_password)
+        user.save()
+
+        # حذف التوكن بعد الاستخدام
+        token_obj.delete()
+
+        return Response({"message": "تم تغيير كلمة المرور بنجاح"})
+
+
+
+class GoogleAuthView(APIView):
+    def post(self, request):
+        token = request.data.get("credential")
+
+        try:
+            google_user = id_token.verify_oauth2_token(token, requests.Request())
+        except Exception:
+            raise AuthenticationFailed("Token invalid")
+
+        email = google_user["email"]
+        name = google_user.get("name", "")
+
+        user, created = User.objects.get_or_create(
+            username=email,
+            defaults={"email": email, "first_name": name}
+        )
+
+        # You can generate a JWT token here if needed
+        return Response({
+            "message": "logged in",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.first_name
+            }
+        })

@@ -180,3 +180,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Site ID for allauth
 SITE_ID = 1
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = 'shimaanasser304@gmail.com'
+EMAIL_HOST_USER = 'shimaanasser304@gmail.com'
+EMAIL_HOST_PASSWORD = 'gtxxrfjxxegljehw'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

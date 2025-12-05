@@ -6,7 +6,9 @@ from .views import (
     LoginView, 
     UserDetailView, 
     InviteSecretaryView,
-    UserViewSet
+    UserViewSet ,
+    RequestPasswordReset, PasswordResetConfirm, GoogleAuthView
+
 )
 
 router = DefaultRouter()
@@ -18,6 +20,10 @@ urlpatterns = [
     path("users/<int:pk>/", UserDetailView.as_view(), name="user-detail"),
     path("invite-secretary/", InviteSecretaryView.as_view(), name="invite-secretary"),
     path("roles/", RoleListView.as_view(), name="roles-list"),
-    path("", include(router.urls)),  # يتضمن /api/accounts/users/
+    path("", include(router.urls)),  # يتضمن /api/accounts/users/ ,
+    path('password/reset/', RequestPasswordReset.as_view()),
+    path('password/reset/confirm/', PasswordResetConfirm.as_view()),
+    path('google/', GoogleAuthView.as_view()),
+
 ]
 
