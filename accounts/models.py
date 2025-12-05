@@ -1,6 +1,8 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from datetime import timedelta
 
 class Role(models.Model):
     name = models.CharField(
@@ -45,9 +47,42 @@ class Department(models.Model):
 
 
 #custom user model
+class UserManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+    def get_deactivated_users(self):
+        return super().get_queryset().filter(
+            is_active=False, 
+            deleted_at__isnull=True,
+            deactivated_at__isnull=False
+        )
+
+    def get_users_for_deletion(self):
+        fifteen_days_ago = timezone.now() - timedelta(days=15)
+        return super().get_queryset().filter(
+            is_active=False,
+            deactivated_at__lte=fifteen_days_ago,
+            deleted_at__isnull=True
+        )
+        
+    def get_by_natural_key(self, username):
+        """
+        This method is required for Django's authentication system.
+        It allows users to log in using their email as the username field.
+        """
+        return self.get(**{f"{self.model.USERNAME_FIELD}__iexact": username})
+
+
 class User(AbstractUser):
     email = models.EmailField(unique=True, verbose_name="البريد الإلكتروني")  
-    username = models.CharField(max_length=150, verbose_name="اسم المستخدم") 
+    username = models.CharField(max_length=150, verbose_name="اسم المستخدم")
+    is_active = models.BooleanField(default=True, verbose_name="نشط")
+    deactivated_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ التعطيل")
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ الحذف النهائي")
+    deactivated_until = models.DateTimeField(null=True, blank=True)
+    objects = UserManager()
+    all_objects = models.Manager()  # To access all users including deactivated ones
     role = models.ForeignKey(
         Role,
         on_delete=models.SET_NULL,
@@ -86,5 +121,27 @@ class User(AbstractUser):
         """إرجاع اسم الدور أو None إذا لم يكن هناك دور"""
         return self.role.name if self.role else None
 
+    def soft_delete(self):
+        """Deactivate user instead of deleting"""
+        self.is_active = False
+        self.deactivated_at = timezone.now()
+        self.save(update_fields=['is_active', 'deactivated_at'])
+    
+    def reactivate(self):
+        """Reactivate a deactivated user"""
+        if not self.is_active and self.deactivated_at:
+            self.is_active = True
+            self.deactivated_at = None
+            self.save(update_fields=['is_active', 'deactivated_at'])
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to use soft delete"""
+        self.soft_delete()
+    
+    def hard_delete(self):
+        """Permanently delete the user"""
+        super().delete()
+    
     def __str__(self):
-        return f"{self.username} - {self.role.name if self.role else 'بدون دور'}"
+        status = 'معطل' if not self.is_active else 'نشط'
+        return f"{self.username} - {self.role.name if self.role else 'بدون دور'} ({status})"

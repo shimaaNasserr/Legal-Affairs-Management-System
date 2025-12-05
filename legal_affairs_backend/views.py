@@ -7,6 +7,7 @@ from cases.models import Case
 from contracts.models import Contract
 from fatwas.models import Fatwa
 from investigations.models import Investigation
+from investigations.models import Appeal
 
 
 class ReportsSummaryView(APIView):
@@ -19,6 +20,7 @@ class ReportsSummaryView(APIView):
             "contracts": Contract.objects.count(),
             "fatwas": Fatwa.objects.count(),
             "investigations": Investigation.objects.count(),
+            "appeals":Appeal.objects.count()
         }
         return Response(data)
 
