@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from accounts.models import Department
 from django.apps import apps
+from courts.models import CourtDivision , Court
+
 
 def allocate_general_number():
     now = timezone.now()
@@ -41,13 +43,13 @@ class Case(models.Model):
     general_number = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="الرقم العام")
     case_number = models.CharField(max_length=100, verbose_name="رقم الحصر")
     lawsuit_number = models.CharField(max_length=100, verbose_name="رقم الدعوى")
-    court = models.ForeignKey(
-        'courts.Court',
+    court = models.ForeignKey(Court, on_delete=models.PROTECT)
+    division = models.ForeignKey(
+        CourtDivision,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        related_name="cases",
-        verbose_name="المحكمة"
+        related_name="cases"
     )
     plaintiff = models.CharField(max_length=200, verbose_name="اسم المدعي")
     defendant = models.CharField(max_length=200, verbose_name="اسم المدعى عليه")
