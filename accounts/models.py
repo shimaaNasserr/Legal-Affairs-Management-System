@@ -1,9 +1,8 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils import timezone
 from datetime import timedelta
-
 
 class Role(models.Model):
     name = models.CharField(
@@ -47,8 +46,8 @@ class Department(models.Model):
         return self.name
 
 
-#custom user model
-class UserManager(models.Manager):
+# -------- UserManager مع دعم create_superuser --------
+class UserManager(BaseUserManager):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
@@ -68,13 +67,33 @@ class UserManager(models.Manager):
         )
         
     def get_by_natural_key(self, username):
-        """
-        This method is required for Django's authentication system.
-        It allows users to log in using their email as the username field.
-        """
         return self.get(**{f"{self.model.USERNAME_FIELD}__iexact": username})
 
+    # إضافة create_user
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("Email is required")
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
+    # إضافة create_superuser
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(email, password, **extra_fields)
+
+
+# -------- User Model --------
 class User(AbstractUser):
     email = models.EmailField(unique=True, verbose_name="البريد الإلكتروني")  
     username = models.CharField(max_length=150, verbose_name="اسم المستخدم")
@@ -100,7 +119,7 @@ class User(AbstractUser):
         related_name="users",
         verbose_name="الإدارة"
     )
-    #ده المحامي المسؤول اللي السكرتيره تابعه ليه
+    # ده المحامي المسؤول اللي السكرتيره تابعه ليه
     assigned_lawyer = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -119,28 +138,23 @@ class User(AbstractUser):
 
     @property
     def role_name(self):
-        """إرجاع اسم الدور أو None إذا لم يكن هناك دور"""
         return self.role.name if self.role else None
 
     def soft_delete(self):
-        """Deactivate user instead of deleting"""
         self.is_active = False
         self.deactivated_at = timezone.now()
         self.save(update_fields=['is_active', 'deactivated_at'])
     
     def reactivate(self):
-        """Reactivate a deactivated user"""
         if not self.is_active and self.deactivated_at:
             self.is_active = True
             self.deactivated_at = None
             self.save(update_fields=['is_active', 'deactivated_at'])
     
     def delete(self, *args, **kwargs):
-        """Override delete to use soft delete"""
         self.soft_delete()
     
     def hard_delete(self):
-        """Permanently delete the user"""
         super().delete()
     
     def __str__(self):
@@ -148,7 +162,7 @@ class User(AbstractUser):
         return f"{self.username} - {self.role.name if self.role else 'بدون دور'} ({status})"
 
 
-
+# -------- Password Reset Token --------
 class PasswordResetToken(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     token = models.UUIDField(default=uuid.uuid4, unique=True)
@@ -156,5 +170,3 @@ class PasswordResetToken(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.token}"
-
-

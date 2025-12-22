@@ -4,7 +4,7 @@ Management command لإدخال بيانات تجريبية مناسبة للن�
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from accounts.models import Role, Department
-from cases.models import Case, LawyerSecretaryAccess
+from cases.models import Case
 from investigations.models import Investigation, Appeal
 from contracts.models import Contract
 from courts.models import Court, CourtDivision
@@ -249,7 +249,7 @@ class Command(BaseCommand):
                     'department': departments[case_data['department']] if case_data['department'] < len(departments) else None,
                     'created_by': users.get('Lawyer', [users.get('DepartmentManager', [None])[0] if users.get('DepartmentManager') else None])[0] if users.get('Lawyer') else None,
                     'court': courts[i % len(courts)] if courts else None,
-                    'hearing_dates': timezone.now().date() + timedelta(days=random.randint(7, 30)) if case_data['case_status'] == 'in_court' else None,
+                    'hearing_dates': [(timezone.now().date() + timedelta(days=random.randint(7, 30))).isoformat()] if case_data['case_status'] == 'in_court' else [],
                     'notes': f'ملاحظات حول القضية {case_data["case_number"]}',
                 }
             )
@@ -450,15 +450,15 @@ class Command(BaseCommand):
             return
         
         # ربط كل سكرتيرة بمحامي
-        for i, secretary in enumerate(secretaries):
-            lawyer = lawyers[i % len(lawyers)]
-            secretary.assigned_lawyer = lawyer
-            secretary.save()
+        # for i, secretary in enumerate(secretaries):
+        #     lawyer = lawyers[i % len(lawyers)]
+        #     secretary.assigned_lawyer = lawyer
+        #     secretary.save()
             
-            # إنشاء LawyerSecretaryAccess
-            LawyerSecretaryAccess.objects.get_or_create(
-                lawyer=lawyer,
-                secretary=secretary
-            )
-            self.stdout.write(f'  Linked {secretary.username} to {lawyer.username}')
+        #     # إنشاء LawyerSecretaryAccess
+        #     LawyerSecretaryAccess.objects.get_or_create(
+        #         lawyer=lawyer,
+        #         secretary=secretary
+        #     )
+        #     self.stdout.write(f'  Linked {secretary.username} to {lawyer.username}')
 

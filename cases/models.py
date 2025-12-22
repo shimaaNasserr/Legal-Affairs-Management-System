@@ -53,7 +53,7 @@ class Case(models.Model):
     defendant = models.CharField(max_length=200, verbose_name="اسم المدعى عليه")
     requests = models.TextField(verbose_name="الطلبات")
     
-    hearing_dates = models.JSONField(default=list, null=True, blank=True, verbose_name="تواريخ الجلسات")
+    hearing_dates = models.JSONField(default=list,  blank=True, verbose_name="تواريخ الجلسات")
     notes = models.TextField(default='', blank=True, verbose_name="ملاحظات")
 
     appeal_status = models.BooleanField(default=None, null=True, blank=True, verbose_name="حالة الاستئناف")

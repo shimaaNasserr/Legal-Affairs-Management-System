@@ -271,6 +271,33 @@ class RequestPasswordReset(APIView):
 
 
 class PasswordResetConfirm(APIView):
+    permission_classes = []  # لا يحتاج صلاحيات
+
+    def post(self, request):
+        token = request.data.get("token")
+        new_password = request.data.get("password")
+        password_confirm = request.data.get("password_confirm")
+
+        if not token or not new_password or not password_confirm:
+            return Response({"message": "يرجى ملء جميع الحقول"}, status=400)
+
+        if new_password != password_confirm:
+            return Response({"message": "كلمة المرور الجديدة وتأكيدها غير متطابقين"}, status=400)
+
+        try:
+            token_obj = PasswordResetToken.objects.get(token=token)
+        except PasswordResetToken.DoesNotExist:
+            return Response({"message": "الرابط غير صالح أو انتهى"}, status=400)
+
+        user = token_obj.user
+        user.set_password(new_password)  # bypass validators
+        user.save()
+
+        # حذف التوكن بعد الاستخدام
+        token_obj.delete()
+
+        return Response({"message": "تم تغيير كلمة المرور بنجاح"})
+
 
     permission_classes = []  
     def post(self, request):
@@ -291,6 +318,7 @@ class PasswordResetConfirm(APIView):
         token_obj.delete()
 
         return Response({"message": "تم تغيير كلمة المرور بنجاح"})
+    
 
 
 
