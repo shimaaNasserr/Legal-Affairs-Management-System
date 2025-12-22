@@ -34,8 +34,8 @@ class Case(models.Model):
     ]
 
     OUTCOME_CHOICES = [
-        ('for_university', 'لصالح الجامعة'),
-        ('against_university', 'ضد الجامعة'),
+        ('لصالح الجامعة', 'لصالح الجامعة'),
+        ('ضد الجامعة', 'ضد الجامعة'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

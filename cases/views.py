@@ -18,20 +18,34 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Case.objects.select_related('department', 'created_by').prefetch_related('lawyers')
+
+        qs = (
+            Case.objects
+            .select_related(
+                'department',
+                'created_by',
+                'court',
+                'division'
+            )
+            .prefetch_related('lawyers')
+        )
 
         if user.role_name == "GeneralManager":
             return qs
+
         if user.role_name == "DepartmentManager":
             if user.department and user.department.name == "إدارة القضايا":
                 return qs
             return Case.objects.none()
+
         if user.role_name == "President":
             return qs
+
         if user.role_name == "Lawyer":
             if user.department and user.department.name == "إدارة القضايا":
                 return qs.filter(created_by=user)
             return Case.objects.none()
+
         return Case.objects.none()
 
     def perform_create(self, serializer):

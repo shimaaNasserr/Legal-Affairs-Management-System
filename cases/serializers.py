@@ -20,6 +20,7 @@ class CaseSerializer(serializers.ModelSerializer):
             'id',
             'court',
             'court_name',
+            'division',
             'division_name',
             'court_full_name',
             'case_number',
@@ -50,20 +51,17 @@ class CaseSerializer(serializers.ModelSerializer):
     # ======= Court & Division =======
     def get_court_name(self, obj):
         return obj.court.name if obj.court else None
-
+    
     def get_division_name(self, obj):
-        if obj.court and getattr(obj.court, "division", None):
-            return obj.court.division.name
-        return None
+        return obj.division.name if obj.division else None
+
 
 
     def get_court_full_name(self, obj):
-        court = self.get_court_name(obj)
-        division = self.get_division_name(obj)
+        if obj.court and obj.division:
+            return f"{obj.court.name} - {obj.division.name}"
+        return obj.court.name if obj.court else None
 
-        if court and division:
-            return f"{court} - {division}"
-        return court
 
 
     # ======= Lawyers details =======
