@@ -23,7 +23,8 @@ class UserSerializer(serializers.ModelSerializer):
             "department_name",
             "department_id",
             "assigned_lawyer",
-            "assigned_lawyer_name"
+            "assigned_lawyer_name",
+            "is_active",
         ]
         read_only_fields = ["id", "email"]
 

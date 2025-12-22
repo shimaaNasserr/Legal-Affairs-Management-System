@@ -1,24 +1,17 @@
-from rest_framework import generics, status, viewsets
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
-from .serializers import RegisterSerializer, UserSerializer, LoginSerializer
-from rest_framework.views import APIView
-from .permissions import IsLawyer, IsPresident, IsGeneralManager
-from .models import Role
-from .serializers import RoleSerializer
-from django.contrib.auth import get_user_model
-from rest_framework import serializers
-from accounts.models import Role, Department
 from django.shortcuts import get_object_or_404
-from accounts.models import User
-from .serializers import UserDetailSerializer
+from django.contrib.auth import authenticate, get_user_model
+import logging
+
+from rest_framework import generics, status, viewsets, serializers, permissions
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
+
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
-from rest_framework import permissions
 
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
@@ -29,8 +22,36 @@ from rest_framework.exceptions import AuthenticationFailed
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
+from .serializers import (
+    RegisterSerializer,
+    UserSerializer,
+    LoginSerializer,
+    RoleSerializer,
+    UserDetailSerializer as IncomingUserDetailSerializer,  # we'll re-declare below
+)
+from .permissions import IsLawyer, IsPresident, IsGeneralManager
+from accounts.models import Role, Department  # keep if used elsewhere
+from django.db.models import Q
+from datetime import timedelta
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+class IsPresidentOrGeneralManager(permissions.BasePermission):
+    def has_permission(self, request, view):
+        # Use instances of permission classes (they will read request.user)
+        return IsPresident().has_permission(request, view) or IsGeneralManager().has_permission(request, view)
+
+    def has_object_permission(self, request, view, obj):
+        return IsPresident().has_object_permission(request, view, obj) or IsGeneralManager().has_object_permission(request, view, obj)
+
+
+# ---------- Minimal serializers protections ----------
+# If you already have UserDetailSerializer defined elsewhere, you can skip redefining it.
+# I include a hardened version in-case the incoming serializer relied on unsafe context access.
 
 class IsPresidentOrGeneralManager(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -143,73 +164,75 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
         return obj
 
 
+
+# ---------- Cleaned UserViewSet ----------
 class UserViewSet(viewsets.ModelViewSet):
     """
-    ViewSet لإدارة المستخدمين
-    فقط الرئيس ومدير العام يمكنهم الوصول
+    إدارة المستخدمين:
+    - President و GeneralManager يمكنهم عرض المستخدمين
+    - فقط President يمكنه إنشاء/تعديل/تعطيل/إعادة تفعيل المستخدمين
     """
     queryset = User.objects.all().select_related('role', 'department', 'assigned_lawyer')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['role', 'department']
     search_fields = ['username', 'email', 'first_name', 'last_name']
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
 
     def get_serializer_class(self):
-        """اختيار Serializer حسب العملية"""
         if self.action in ['create', 'update', 'partial_update']:
             return UserDetailSerializer
         return UserSerializer
 
     def get_queryset(self):
-        """تخصيص QuerySet حسب دور المستخدم"""
         user = self.request.user
-        role_name = user.role_name
+        role_name = getattr(user, "role_name", None)
 
-        # الرئيس ومدير العام: جميع المستخدمين
-        if role_name in ['President', 'GeneralManager']:
-            # فلترة حسب الدور إذا تم تمرير role في query params
-            role_filter = self.request.query_params.get('role', None)
-            if role_filter:
-                return User.objects.filter(role__name=role_filter).select_related('role', 'department', 'assigned_lawyer')
+        # Reactivate action must include all users
+        if self.action == "reactivate":
             return User.objects.all().select_related('role', 'department', 'assigned_lawyer')
 
-        # باقي المستخدمين: لا يمكنهم الوصول
+        # President/GeneralManager can view users
+        if role_name in ['President', 'GeneralManager']:
+            queryset = User.objects.all()
+            role_filter = self.request.query_params.get('role', None)
+            if role_filter:
+                queryset = queryset.filter(role__name__iexact=role_filter)
+            show_deactivated = self.request.query_params.get('show_deactivated', 'false').lower() == 'true'
+            if not show_deactivated and self.action != 'retrieve':
+                queryset = queryset.filter(is_active=True)
+            return queryset.select_related('role', 'department', 'assigned_lawyer')
+
+        # Other roles cannot see any users
         return User.objects.none()
 
     def get_permissions(self):
-        """تحديد الصلاحيات حسب العملية"""
         if self.action in ['list', 'retrieve']:
-            # فقط الرئيس ومدير العام يمكنهم عرض المستخدمين
             return [IsAuthenticated(), IsPresidentOrGeneralManager()]
-        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
-            # فقط الرئيس يمكنه إنشاء/تعديل/حذف المستخدمين
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'reactivate']:
             return [IsAuthenticated(), IsPresident()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        """إنشاء مستخدم جديد"""
-        user = self.request.user
-        if user.role_name != 'President':
+        if getattr(self.request.user, "role_name", None) != 'President':
             raise PermissionDenied("فقط الرئيس يمكنه إنشاء مستخدمين جدد")
         serializer.save()
 
     def perform_update(self, serializer):
-        """تحديث مستخدم"""
-        user = self.request.user
-        if user.role_name != 'President':
+        if getattr(self.request.user, "role_name", None) != 'President':
             raise PermissionDenied("فقط الرئيس يمكنه تعديل المستخدمين")
         serializer.save()
 
-    def perform_destroy(self, instance):
-        """حذف مستخدم"""
-        user = self.request.user
-        if user.role_name != 'President':
-            raise PermissionDenied("فقط الرئيس يمكنه حذف المستخدمين")
-        # منع حذف المستخدم الحالي
-        if instance == user:
-            raise PermissionDenied("لا يمكنك حذف نفسك")
-        instance.delete()
-
+    @action(detail=True, methods=['post'], url_path='reactivate', url_name='user-reactivate')
+    def reactivate(self, request, pk=None):
+        """إعادة تفعيل مستخدم مؤقتًا معطل"""
+        user = self.get_object()
+        if user.is_active:
+            return Response({"detail": "المستخدم نشط بالفعل"}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = True
+        user.deactivated_until = None
+        user.save(update_fields=["is_active", "deactivated_until"])
+        return Response({"detail": "تم إعادة تفعيل المستخدم بنجاح"}, status=status.HTTP_200_OK)
 
 
 
@@ -297,3 +320,15 @@ class GoogleAuthView(APIView):
                 "name": user.first_name
             }
         })
+    def destroy(self, request, *args, **kwargs):
+        """تعطيل المستخدم لمدة 15 يومًا بدلاً من حذفه"""
+        instance = self.get_object()
+        if getattr(request.user, "role_name", None) != "President":
+            raise PermissionDenied("فقط الرئيس يمكنه تعطيل المستخدمين")
+        if instance == request.user:
+            return Response({"detail": "لا يمكنك تعطيل نفسك"}, status=status.HTTP_400_BAD_REQUEST)
+        # تعطيل لمدة 15 يوم
+        instance.is_active = False
+        instance.deactivated_until = timezone.now() + timedelta(days=15)
+        instance.save(update_fields=["is_active", "deactivated_until"])
+        return Response({"detail": "تم تعطيل المستخدم لمدة ١٥ يومًا"}, status=status.HTTP_200_OK)
