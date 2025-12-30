@@ -116,7 +116,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
             "assigned_lawyer_name",
             "password"
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "role", "department_name", "assigned_lawyer_name"]
+
 
     def get_assigned_lawyer_name(self, obj):
         """إرجاع اسم المحامي المسؤول"""
@@ -145,15 +146,15 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        if 'request' in self.context:
-            request_user = self.context['request'].user
 
-            # التحقق من وجود role قبل الوصول إلى name
-            role_name = request_user.role_name
-            if not request_user.is_superuser and role_name and role_name.lower() != "president":
-                # المستخدم العادي لا يستطيع تعديل الدور، الإدارة، assigned_lawyer
-                for field in ["role", "role_id", "department", "assigned_lawyer", "email"]:
-                    if field in fields:
-                        fields[field].read_only = True
+        # Restrict certain fields for non-Presidents
+        request_user = self.context.get("request").user if "request" in self.context else None
+        if request_user and not request_user.is_superuser:
+            role_name = request_user.role.name if request_user.role else None
+            if role_name != "president":
+                # These fields will be read-only for non-Presidents
+                for field_name in ["role_id", "department", "assigned_lawyer", "email"]:
+                    if field_name in fields:
+                        fields[field_name].read_only = True
 
         return fields

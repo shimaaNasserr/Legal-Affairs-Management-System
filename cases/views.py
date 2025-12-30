@@ -5,13 +5,20 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
 from .models import Case
 from .serializers import CaseSerializer
 from .permissions import CasePermissions
 
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 8
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class CaseViewSet(viewsets.ModelViewSet):
     serializer_class = CaseSerializer
     permission_classes = [CasePermissions]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['department', 'case_status', 'appeal_status']
     search_fields = ['case_number', 'lawsuit_number', 'plaintiff', 'defendant', 'court__name']
