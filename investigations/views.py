@@ -55,28 +55,32 @@ class InvestigationViewSet(viewsets.ModelViewSet):
         
         # President و GeneralManager: جميع التحقيقات
         if role_name in ['President', 'GeneralManager']:
-            return Investigation.objects.all()
-        
-        # DepartmentManager: تحقيقات إدارته فقط
-        if role_name == 'DepartmentManager':
-            return Investigation.objects.filter(department=user.department)
-        
-        # Lawyer: التحقيقات المعينة له أو من إدارته
-        if role_name == 'Lawyer':
-            return Investigation.objects.filter(
-                Q(assigned_investigators=user) | 
+            qs = Investigation.objects.all()
+        elif role_name == 'DepartmentManager':
+            qs = Investigation.objects.filter(department=user.department)
+        elif role_name == 'Lawyer':
+            qs = Investigation.objects.filter(
+                Q(assigned_investigators=user) |
                 Q(department=user.department)
             ).distinct()
-        
-        # Secretary: التحقيقات المرتبطة بالمحامي المسؤول
-        if role_name == 'Secretary':
+        elif role_name == 'Secretary':
             if user.assigned_lawyer:
-                return Investigation.objects.filter(
+                qs = Investigation.objects.filter(
                     assigned_investigators=user.assigned_lawyer
                 ).distinct()
-            return Investigation.objects.none()
-        
-        return Investigation.objects.none()
+            else:
+                qs = Investigation.objects.none()
+        else:
+            qs = Investigation.objects.none()
+
+        # Apply date range filters on date_received
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(date_received__gte=date_from)
+        if date_to:
+            qs = qs.filter(date_received__lte=date_to)
+        return qs
     
     def get_serializer_class(self):
         """اختيار Serializer حسب العملية"""
