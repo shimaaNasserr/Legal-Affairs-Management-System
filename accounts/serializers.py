@@ -150,9 +150,9 @@ class UserDetailSerializer(serializers.ModelSerializer):
         # Restrict certain fields for non-Presidents
         request_user = self.context.get("request").user if "request" in self.context else None
         if request_user and not request_user.is_superuser:
-            role_name = request_user.role.name if request_user.role else None
-            if role_name != "president":
-                # These fields will be read-only for non-Presidents
+            role_name = request_user.role_name
+            if role_name not in ["President", "GeneralManager"]:
+                # These fields will be read-only for non-Presidents and non-GeneralManagers
                 for field_name in ["role_id", "department", "assigned_lawyer", "email"]:
                     if field_name in fields:
                         fields[field_name].read_only = True

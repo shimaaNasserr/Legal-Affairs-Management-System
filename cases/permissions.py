@@ -7,6 +7,7 @@ class CasePermissions(BasePermission):
     - GeneralManager و DepartmentManager (إدارة القضايا) لهم كل الصلاحيات
     - President: قراءة فقط
     - Lawyer (إدارة القضايا): يضيف ويعدل القضايا التي أنشأها
+    - Secretary: يضيف ويعدل القضايا المتعلقة بالمحامي المخصص له
     """
 
     def has_permission(self, request, view):
@@ -14,9 +15,9 @@ class CasePermissions(BasePermission):
         if not user.is_authenticated:
             return False
 
-        # President: read-only
-        if user.role_name == "President":
-            return request.method in SAFE_METHODS
+        # President and GeneralManager: full access
+        if user.role_name in ["President", "GeneralManager"]:
+            return True
 
         # GeneralManager: full access
         if user.role_name == "GeneralManager":
@@ -30,6 +31,13 @@ class CasePermissions(BasePermission):
 
         # Lawyer: read + create
         if user.role_name == "Lawyer" and hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
+            if request.method in SAFE_METHODS or request.method == "POST":
+                return True
+            # تعديل/حذف سيُتحكم فيه بالـ object-level
+            return True
+
+        # Secretary: read + create for cases related to their assigned lawyer
+        if user.role_name == "Secretary" and hasattr(user, "assigned_lawyer"):
             if request.method in SAFE_METHODS or request.method == "POST":
                 return True
             # تعديل/حذف سيُتحكم فيه بالـ object-level
@@ -49,6 +57,9 @@ class CasePermissions(BasePermission):
                 return True
             if user.role_name == "Lawyer" and obj.created_by == user:
                 return True
+            if user.role_name == "Secretary" and hasattr(user, "assigned_lawyer"):
+                # Secretary can view cases created by their assigned lawyer
+                return obj.created_by == user.assigned_lawyer
             return False
 
         # Write requests
@@ -58,5 +69,8 @@ class CasePermissions(BasePermission):
             return True
         if user.role_name == "Lawyer":
             return obj.created_by == user
+        if user.role_name == "Secretary" and hasattr(user, "assigned_lawyer"):
+            # Secretary can modify cases created by their assigned lawyer
+            return obj.created_by == user.assigned_lawyer
 
         return False

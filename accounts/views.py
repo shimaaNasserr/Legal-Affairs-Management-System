@@ -40,15 +40,6 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-class IsPresidentOrGeneralManager(permissions.BasePermission):
-    def has_permission(self, request, view):
-        # Use instances of permission classes (they will read request.user)
-        return IsPresident().has_permission(request, view) or IsGeneralManager().has_permission(request, view)
-
-    def has_object_permission(self, request, view, obj):
-        return IsPresident().has_object_permission(request, view, obj) or IsGeneralManager().has_object_permission(request, view, obj)
-
-
 # ---------- Minimal serializers protections ----------
 # If you already have UserDetailSerializer defined elsewhere, you can skip redefining it.
 # I include a hardened version in-case the incoming serializer relied on unsafe context access.
@@ -107,7 +98,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
         # التحقق من وجود role قبل الوصول إلى name
         role_name = request_user.role_name
-        if not request_user.is_superuser and role_name and role_name.lower() != "president":
+        if not request_user.is_superuser and role_name and role_name not in ["President", "GeneralManager"]:
             # المستخدم العادي لا يستطيع تعديل الدور، الإدارة، assigned_lawyer
             for field in ["role", "department", "assigned_lawyer", "email"]:
                 fields[field].read_only = True
@@ -146,18 +137,17 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         obj = get_object_or_404(User, pk=self.kwargs["pk"])
         request_user = self.request.user
-        user_role = getattr(request_user.role, "name", None)
+        user_role = request_user.role_name
 
         # المحامي: فقط السكرتاريه المرتبطين به
-        # توحيد الأسماء - مقارنة case-insensitive
-        if user_role and user_role.lower() == "lawyer":
+        if user_role and user_role == "Lawyer":
             if obj.assigned_lawyer != request_user:
                 from rest_framework.exceptions import PermissionDenied
                 if self.request.method in ["PUT", "PATCH"]:
                     raise PermissionDenied("ليس لديك صلاحية تعديل هذا المستخدم.")
         
         # المستخدم العادي: فقط نفسه يمكنه التعديل
-        elif obj != request_user and not request_user.is_superuser and (not user_role or user_role.lower() != "president"):
+        elif obj != request_user and not request_user.is_superuser and (not user_role or user_role not in ["President", "GeneralManager"]):
             if self.request.method in ["PUT", "PATCH"]:
                 raise PermissionDenied("يمكنك تعديل بياناتك فقط.")
 
@@ -170,7 +160,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     إدارة المستخدمين:
     - President و GeneralManager يمكنهم عرض المستخدمين
-    - فقط President يمكنه إنشاء/تعديل/تعطيل/إعادة تفعيل المستخدمين
+    - President و GeneralManager يمكنهم إنشاء/تعديل/تعطيل/إعادة تفعيل المستخدمين
     """
     queryset = User.objects.all().select_related('role', 'department', 'assigned_lawyer')
     permission_classes = [IsAuthenticated]
@@ -210,17 +200,19 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated(), IsPresidentOrGeneralManager()]
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'reactivate']:
-            return [IsAuthenticated(), IsPresident()]
+            return [IsAuthenticated(), IsPresidentOrGeneralManager()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        if getattr(self.request.user, "role_name", None) != 'President':
-            raise PermissionDenied("فقط الرئيس يمكنه إنشاء مستخدمين جدد")
+        user_role = getattr(self.request.user, "role_name", None)
+        if user_role not in ['President', 'GeneralManager']:
+            raise PermissionDenied("فقط الرئيس والمدير العام يمكنهما إنشاء مستخدمين جدد")
         serializer.save()
 
     def perform_update(self, serializer):
-        if getattr(self.request.user, "role_name", None) != 'President':
-            raise PermissionDenied("فقط الرئيس يمكنه تعديل المستخدمين")
+        user_role = getattr(self.request.user, "role_name", None)
+        if user_role not in ['President', 'GeneralManager']:
+            raise PermissionDenied("فقط الرئيس والمدير العام يمكنهما تعديل المستخدمين")
         serializer.save()
 
     @action(detail=True, methods=['post'], url_path='reactivate', url_name='user-reactivate')
@@ -351,8 +343,9 @@ class GoogleAuthView(APIView):
     def destroy(self, request, *args, **kwargs):
         """تعطيل المستخدم لمدة 15 يومًا بدلاً من حذفه"""
         instance = self.get_object()
-        if getattr(request.user, "role_name", None) != "President":
-            raise PermissionDenied("فقط الرئيس يمكنه تعطيل المستخدمين")
+        user_role = getattr(request.user, "role_name", None)
+        if user_role not in ["President", "GeneralManager"]:
+            raise PermissionDenied("فقط الرئيس والمدير العام يمكنهما تعطيل المستخدمين")
         if instance == request.user:
             return Response({"detail": "لا يمكنك تعطيل نفسك"}, status=status.HTTP_400_BAD_REQUEST)
         # تعطيل لمدة 15 يوم

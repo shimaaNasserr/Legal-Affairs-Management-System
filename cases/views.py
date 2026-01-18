@@ -27,34 +27,49 @@ class CaseViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Case.objects.select_related('department', 'created_by').prefetch_related('lawyers')
 
-        if user.role_name == "GeneralManager":
+        if user.role_name in ["GeneralManager", "President"]:
             return qs
         if user.role_name == "DepartmentManager":
             if user.department and user.department.name == "إدارة القضايا":
                 return qs
             return Case.objects.none()
-        if user.role_name == "President":
-            return qs
         if user.role_name == "Lawyer":
             if user.department and user.department.name == "إدارة القضايا":
                 return qs.filter(created_by=user)
             return Case.objects.none()
+        if user.role_name == "Secretary" and user.assigned_lawyer:
+            # Secretary can see cases created by their assigned lawyer
+            return qs.filter(created_by=user.assigned_lawyer)
         return Case.objects.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        print(f"Trying to create case with user: {user.username} - {user.role_name} {getattr(user.department, 'name', None)}")  # debug
-        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+        print(f"DEBUG: Trying to create case with user: {user.username}")
+        print(f"DEBUG: User role: {user.role_name}")
+        print(f"DEBUG: User department: {getattr(user.department, 'name', None) if user.department else None}")
+        print(f"DEBUG: Has assigned lawyer: {user.assigned_lawyer is not None}")
+        if user.assigned_lawyer:
+            print(f"DEBUG: Assigned lawyer: {user.assigned_lawyer.username}")
+            print(f"DEBUG: Assigned lawyer department: {getattr(user.assigned_lawyer.department, 'name', None) if user.assigned_lawyer.department else None}")
+        
+        if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
+            print("DEBUG: GeneralManager/President/DepartmentManager path")
             serializer.save(created_by=user)
         elif user.role_name == "Lawyer" and user.department and user.department.name == "إدارة القضايا":
+            print("DEBUG: Lawyer path")
             serializer.save(created_by=user)
+        elif user.role_name == "Secretary" and user.assigned_lawyer:
+            print("DEBUG: Secretary path")
+            # Secretary creates case on behalf of their assigned lawyer
+            serializer.save(created_by=user.assigned_lawyer)
         else:
+            print("DEBUG: Permission denied path")
             raise PermissionDenied("ليس لديك صلاحية إضافة قضية")
 
     def perform_update(self, serializer):
         user = self.request.user
         case = self.get_object()
-        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+        if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             serializer.save()
         elif user.role_name == "Lawyer" and case.created_by == user:
             serializer.save()
@@ -63,7 +78,7 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if user.role_name in ["GeneralManager", "DepartmentManager"] and (user.role_name != "DepartmentManager" or (user.department and user.department.name == "إدارة القضايا")):
+        if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             instance.delete()
         else:
             raise PermissionDenied("ليس لديك صلاحية حذف هذه القضية")
