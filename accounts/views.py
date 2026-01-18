@@ -182,7 +182,7 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action == "reactivate":
             return User.objects.all().select_related('role', 'department', 'assigned_lawyer')
 
-        # President/GeneralManager can view users
+        # President/GeneralManager can view all users
         if role_name in ['President', 'GeneralManager']:
             queryset = User.objects.all()
             role_filter = self.request.query_params.get('role', None)
@@ -193,12 +193,23 @@ class UserViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(is_active=True)
             return queryset.select_related('role', 'department', 'assigned_lawyer')
 
+        # DepartmentManager: only see users in own department
+        if role_name in ['DepartmentManager', 'department_manager']:
+            if user.department_id:
+                return (
+                    User.objects.filter(department_id=user.department_id)
+                    .select_related('role', 'department', 'assigned_lawyer')
+                )
+            return User.objects.none()
+
         # Other roles cannot see any users
         return User.objects.none()
 
     def get_permissions(self):
+        # List/retrieve: President, GeneralManager have access; also allow DepartmentManager
         if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated(), IsPresidentOrGeneralManager()]
+            return [IsAuthenticated()]
+        # Mutations: President and GeneralManager have full authority
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'reactivate']:
             return [IsAuthenticated(), IsPresidentOrGeneralManager()]
         return [IsAuthenticated()]

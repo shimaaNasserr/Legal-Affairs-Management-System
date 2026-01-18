@@ -20,7 +20,9 @@ class CaseViewSet(viewsets.ModelViewSet):
     permission_classes = [CasePermissions]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['department', 'case_status', 'appeal_status']
+    # Add date filtering support and keep existing filters
+    filterset_fields = ['department', 'case_status', 'appeal_status', 'date_received']
+    # Search covers name fields so UI can search by name
     search_fields = ['case_number', 'lawsuit_number', 'plaintiff', 'defendant', 'court__name']
 
     def get_queryset(self):
@@ -29,7 +31,14 @@ class CaseViewSet(viewsets.ModelViewSet):
 
         if user.role_name in ["GeneralManager", "President"]:
             return qs
-        if user.role_name == "DepartmentManager":
+        # DepartmentManager: only own department
+        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+            if user.department:
+                qs = qs.filter(department=user.department)
+            else:
+                return Case.objects.none()
+        # Lawyer: only cases created by the lawyer within cases department
+        if role == "Lawyer" or (role and role.lower() == "lawyer"):
             if user.department and user.department.name == "إدارة القضايا":
                 return qs
             return Case.objects.none()
@@ -71,17 +80,33 @@ class CaseViewSet(viewsets.ModelViewSet):
         case = self.get_object()
         if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             serializer.save()
-        elif user.role_name == "Lawyer" and case.created_by == user:
+            return
+        if role == "Secretary" or (role and role.lower() == "secretary"):
             serializer.save()
-        else:
-            raise PermissionDenied("ليس لديك صلاحية تعديل هذه القضية")
+            return
+        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+            if user.department and case.department_id == user.department_id:
+                serializer.save()
+                return
+        if role == "Lawyer" or (role and role.lower() == "lawyer"):
+            if case.created_by_id == user.id:
+                serializer.save()
+                return
+        raise PermissionDenied("ليس لديك صلاحية تعديل هذه القضية")
 
     def perform_destroy(self, instance):
         user = self.request.user
         if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             instance.delete()
-        else:
-            raise PermissionDenied("ليس لديك صلاحية حذف هذه القضية")
+            return
+        if role == "Secretary" or (role and role.lower() == "secretary"):
+            instance.delete()
+            return
+        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+            if user.department and instance.department_id == user.department_id:
+                instance.delete()
+                return
+        raise PermissionDenied("ليس لديك صلاحية حذف هذه القضية")
 
     @action(detail=False, methods=['get'], url_path='my-cases')
     def my_cases(self, request):
