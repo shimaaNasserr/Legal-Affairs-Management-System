@@ -12,10 +12,10 @@ class FatwaPermission(permissions.BasePermission):
         # Normalize
         role_name = (role_name or "").lower()
 
-        if role_name in ["president", "general_manager"]:
+        if role_name in ["president", "generalmanager"]:
             return True
 
-        if role_name == "department_manager":
+        if role_name == "departmentmanager":
             # Allow read and write within department-level workflows
             return request.method in permissions.SAFE_METHODS or request.method in ["POST", "PUT", "PATCH", "DELETE"]
 
@@ -31,14 +31,14 @@ class FatwaPermission(permissions.BasePermission):
 
         if request.method in permissions.SAFE_METHODS:
             # Admins see all, others only their department
-            if role_name in ["president", "general_manager"]:
+            if role_name in ["president", "generalmanager"]:
                 return True
             return obj.department_id == getattr(getattr(user, "department", None), "id", None)
-
+        
         # Write operations
-        if role_name in ["president", "general_manager"]:
+        if role_name in ["president", "generalmanager"]:
             return True
-        if role_name == "department_manager":
+        if role_name == "departmentmanager":
             return obj.department_id == getattr(getattr(user, "department", None), "id", None)
         # Lawyers/secretaries cannot modify/delete
         return False

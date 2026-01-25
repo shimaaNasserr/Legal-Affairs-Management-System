@@ -63,7 +63,7 @@ class CasePermissions(BasePermission):
             return False
 
         # Write requests
-        if user.role_name == "GeneralManager":
+        if user.role_name in ["President", "GeneralManager"]:
             return True
         if user.role_name == "DepartmentManager" and hasattr(user, "department") and user.department and user.department.name == "إدارة القضايا":
             return True

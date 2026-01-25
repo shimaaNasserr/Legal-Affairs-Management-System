@@ -32,13 +32,13 @@ class CaseViewSet(viewsets.ModelViewSet):
         if user.role_name in ["GeneralManager", "President"]:
             return qs
         # DepartmentManager: only own department
-        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+        if user.role_name == "DepartmentManager" or (user.role_name and user.role_name.lower() == "department_manager"):
             if user.department:
                 qs = qs.filter(department=user.department)
             else:
                 return Case.objects.none()
         # Lawyer: only cases created by the lawyer within cases department
-        if role == "Lawyer" or (role and role.lower() == "lawyer"):
+        if user.role_name == "Lawyer" or (user.role_name and user.role_name.lower() == "lawyer"):
             if user.department and user.department.name == "إدارة القضايا":
                 return qs
             return Case.objects.none()
@@ -81,14 +81,14 @@ class CaseViewSet(viewsets.ModelViewSet):
         if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             serializer.save()
             return
-        if role == "Secretary" or (role and role.lower() == "secretary"):
+        if user.role_name == "Secretary" or (user.role_name and user.role_name.lower() == "secretary"):
             serializer.save()
             return
-        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+        if user.role_name == "DepartmentManager" or (user.role_name and user.role_name.lower() == "department_manager"):
             if user.department and case.department_id == user.department_id:
                 serializer.save()
                 return
-        if role == "Lawyer" or (role and role.lower() == "lawyer"):
+        if user.role_name == "Lawyer" or (user.role_name and user.role_name.lower() == "lawyer"):
             if case.created_by_id == user.id:
                 serializer.save()
                 return
@@ -99,10 +99,10 @@ class CaseViewSet(viewsets.ModelViewSet):
         if user.role_name in ["GeneralManager", "President", "DepartmentManager"] and (user.role_name not in ["DepartmentManager"] or (user.department and user.department.name == "إدارة القضايا")):
             instance.delete()
             return
-        if role == "Secretary" or (role and role.lower() == "secretary"):
+        if user.role_name == "Secretary" or (user.role_name and user.role_name.lower() == "secretary"):
             instance.delete()
             return
-        if role == "DepartmentManager" or (role and role.lower() == "department_manager"):
+        if user.role_name == "DepartmentManager" or (user.role_name and user.role_name.lower() == "department_manager"):
             if user.department and instance.department_id == user.department_id:
                 instance.delete()
                 return
